@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Local Planning Assistant</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header">
+        <div class="pill-bar">
+          <button id="calendar-prev" class="icon-button" aria-label="Previous month">‹</button>
+          <div class="pill-center">
+            <span id="calendar-month-label" class="month-label">October 2025</span>
+            <button id="calendar-today" class="tiny-button" type="button">Today</button>
+          </div>
+          <button id="calendar-next" class="icon-button" aria-label="Next month">›</button>
+        </div>
+        <div class="status-chip" aria-live="polite">
+          <span id="connection-dot" class="status-dot"></span>
+          <span id="connection-status">Offline</span>
+        </div>
+      </header>
+
+      <main class="viewport">
+        <section data-view="calendar" id="calendar-view" class="view view--calendar active">
+          <div class="calendar-panel glass">
+            <div id="calendar-weekdays" class="weekday-row"></div>
+            <div id="calendar-grid" class="calendar-grid" aria-label="Planner calendar"></div>
+          </div>
+          <div class="agenda-panel glass">
+            <div class="agenda-header">
+              <h2 id="agenda-title">Today's countdown</h2>
+              <button id="regenerate-plan" class="ghost-button" type="button">Regenerate plan</button>
+            </div>
+            <div id="agenda-empty" class="empty-state agenda-empty">
+              <span class="empty-icon">☀️</span>
+              <p>No events for this day</p>
+              <p class="hint">Add a task or routine to see it here.</p>
+            </div>
+            <ul id="agenda-list" class="agenda-list"></ul>
+          </div>
+          <div class="insights-panel glass">
+            <h3>Weekly snapshot</h3>
+            <div id="insight-cards" class="insight-grid"></div>
+          </div>
+        </section>
+
+        <section data-view="tasks" id="tasks-view" class="view view--tasks">
+          <header class="view-header">
+            <h2>Tasks</h2>
+            <div id="task-filters" class="segmented">
+              <button type="button" data-filter="all" class="is-active">All</button>
+              <button type="button" data-filter="personal">Personal</button>
+              <button type="button" data-filter="school">School</button>
+              <button type="button" data-filter="wellness">Wellness</button>
+            </div>
+          </header>
+          <form id="task-form" class="form-card glass">
+            <div class="field">
+              <label for="task-title">Title</label>
+              <input id="task-title" name="title" placeholder="Finish calculus problem set" required />
+            </div>
+            <div class="field">
+              <label for="task-notes">Notes</label>
+              <textarea id="task-notes" name="notes" rows="2" placeholder="Add context or links"></textarea>
+            </div>
+            <div class="field-row">
+              <label for="task-duration">Duration (min)</label>
+              <input id="task-duration" name="duration" type="number" min="15" step="15" value="60" />
+            </div>
+            <div class="field-row">
+              <label for="task-priority">Priority</label>
+              <input id="task-priority" name="priority" type="number" min="1" max="5" value="3" />
+            </div>
+            <div class="field-row">
+              <label for="task-category">Category</label>
+              <select id="task-category" name="category">
+                <option value="all">Uncategorized</option>
+                <option value="personal">Personal</option>
+                <option value="school">School</option>
+                <option value="family">Family</option>
+                <option value="wellness">Wellness</option>
+                <option value="work">Work</option>
+              </select>
+            </div>
+            <div class="field-row">
+              <label for="task-due">Due date</label>
+              <input id="task-due" name="due" type="date" />
+            </div>
+            <button type="submit" class="primary-button">Add task</button>
+          </form>
+          <ul id="task-list" class="task-list glass"></ul>
+        </section>
+
+        <section data-view="routines" id="routines-view" class="view view--routines">
+          <header class="view-header">
+            <h2>Routines</h2>
+          </header>
+          <form id="routine-form" class="form-card glass">
+            <div class="field">
+              <label for="routine-name">Name</label>
+              <input id="routine-name" name="name" placeholder="Morning routine" required />
+            </div>
+            <div class="time-row">
+              <label>
+                <span>Start</span>
+                <input type="time" name="start" required />
+              </label>
+              <label>
+                <span>End</span>
+                <input type="time" name="end" required />
+              </label>
+            </div>
+            <fieldset class="weekday-picker">
+              <legend>Repeat on</legend>
+              <label><input type="checkbox" name="day" value="0" />Sun</label>
+              <label><input type="checkbox" name="day" value="1" checked />Mon</label>
+              <label><input type="checkbox" name="day" value="2" checked />Tue</label>
+              <label><input type="checkbox" name="day" value="3" checked />Wed</label>
+              <label><input type="checkbox" name="day" value="4" checked />Thu</label>
+              <label><input type="checkbox" name="day" value="5" checked />Fri</label>
+              <label><input type="checkbox" name="day" value="6" />Sat</label>
+            </fieldset>
+            <button type="submit" class="primary-button">Save routine</button>
+          </form>
+          <ul id="routine-list" class="routine-list glass"></ul>
+        </section>
+
+        <section data-view="chat" id="chat-view" class="view view--chat">
+          <header class="view-header">
+            <h2>Assistant</h2>
+          </header>
+          <div class="chat-panel glass">
+            <div id="assistant-log" class="assistant-log"></div>
+            <form id="assistant-form" class="assistant-form">
+              <input id="assistant-input" placeholder="Ask the assistant to help plan your day" autocomplete="off" />
+              <button type="submit" class="primary-button">Send</button>
+            </form>
+          </div>
+        </section>
+      </main>
+
+      <nav class="tab-bar glass" aria-label="Primary">
+        <button type="button" data-tab="calendar" class="tab-button active">
+          <span class="icon">📅</span>
+          <span>Calendar</span>
+        </button>
+        <button type="button" data-tab="tasks" class="tab-button">
+          <span class="icon">✅</span>
+          <span>Tasks</span>
+        </button>
+        <button type="button" data-tab="routines" class="tab-button">
+          <span class="icon">🔁</span>
+          <span>Routines</span>
+        </button>
+        <button type="button" data-tab="chat" class="tab-button">
+          <span class="icon">💬</span>
+          <span>Chat</span>
+        </button>
+      </nav>
+    </div>
+
+    <script type="module" src="/src/app.js"></script>
+  </body>
+</html>

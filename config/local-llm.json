@@ -1,0 +1,8 @@
+{
+  "modelPath": "./Mistral-7B-Instruct-v0.3.Q4_K_M.gguf",
+  "binaryPath": "./bin/llama-cli",
+  "maxTokens": 192,
+  "temperature": 0.7,
+  "topP": 0.9,
+  "systemPrompt": "You are a scheduling assistant that replies concisely with actionable guidance."
+}

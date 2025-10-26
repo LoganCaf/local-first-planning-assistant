@@ -1,0 +1,48 @@
+{
+  "tasks": [
+    {
+      "id": "mh7tdycw-1gqdtp",
+      "title": "assignment",
+      "description": "",
+      "estimatedDuration": 60,
+      "tags": [],
+      "priority": 3,
+      "due": null,
+      "hardDeadline": false,
+      "dependencies": [],
+      "projectId": null,
+      "goalId": null,
+      "location": null,
+      "travelMinutes": 0,
+      "history": [],
+      "categoryWeights": {},
+      "createdAt": "2025-10-26T14:38:52.976Z",
+      "updatedAt": "2025-10-26T14:38:52.976Z"
+    }
+  ],
+  "routines": [],
+  "goals": [],
+  "preferences": {},
+  "placements": [
+    {
+      "taskId": "mh7tdycw-1gqdtp",
+      "title": "assignment",
+      "start": "2025-10-26T12:00:00.000Z",
+      "end": "2025-10-26T13:00:00.000Z",
+      "location": null,
+      "metadata": {
+        "priority": 3,
+        "energyBand": "morning",
+        "due": null,
+        "goalId": null
+      }
+    }
+  ],
+  "conversationLog": [
+    {
+      "timestamp": "2025-10-26T14:38:34.731Z",
+      "user": "i have an assignment dut tommorow",
+      "assistant": "Until the local model is configured, use the task form to capture this and regenerate your schedule."
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "name": "@llm/web",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node dev-server.mjs",
+    "build": "echo 'Static assets ready'",
+    "lint": "node ./scripts/lint-stub.js",
+    "format": "node ./scripts/format-stub.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@llm/shared": "workspace:*"
+  }
+}

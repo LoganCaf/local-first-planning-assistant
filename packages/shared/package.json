@@ -1,0 +1,14 @@
+{
+  "name": "@llm/shared",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "scripts": {
+    "lint": "node ./scripts/lint-stub.js",
+    "test": "node --test",
+    "format": "node ./scripts/format-stub.js"
+  }
+}

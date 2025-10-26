@@ -1,0 +1,47 @@
+{
+  "tasks": [
+    {
+      "id": "mh461qfs-v7qcmu",
+      "title": "Finish project outline",
+      "description": "",
+      "estimatedDuration": 90,
+      "tags": [],
+      "priority": 4,
+      "due": null,
+      "hardDeadline": false,
+      "dependencies": [],
+      "projectId": null,
+      "goalId": null,
+      "location": null,
+      "travelMinutes": 0,
+      "history": [],
+      "categoryWeights": {},
+      "createdAt": "2025-10-24T01:22:13.144Z",
+      "updatedAt": "2025-10-24T01:22:13.144Z"
+    }
+  ],
+  "goals": [],
+  "routines": [],
+  "placements": [
+    {
+      "taskId": "mh461qfs-v7qcmu",
+      "title": "Finish project outline",
+      "start": "2025-10-23T12:00:00.000Z",
+      "end": "2025-10-23T13:30:00.000Z",
+      "location": null,
+      "metadata": {
+        "priority": 4,
+        "energyBand": "morning",
+        "due": null,
+        "goalId": null
+      }
+    }
+  ],
+  "conversationLog": [
+    {
+      "timestamp": "2025-10-24T01:22:13.146Z",
+      "user": "Can you adjust my study plan?",
+      "assistant": "Sure, prioritizing that now. (Can you adjust my study plan?)"
+    }
+  ]
+}

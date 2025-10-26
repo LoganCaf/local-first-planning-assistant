@@ -1,0 +1,16 @@
+{
+  "name": "@llm/server",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "dev": "node src/server.js --watch",
+    "start": "node src/server.js",
+    "test": "node --test",
+    "lint": "node ./scripts/lint-stub.js",
+    "format": "node ./scripts/format-stub.js"
+  },
+  "dependencies": {
+    "@llm/shared": "workspace:*"
+  }
+}
