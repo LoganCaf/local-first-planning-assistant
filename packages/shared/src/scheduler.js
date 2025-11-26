@@ -103,6 +103,9 @@ export function allocateTask(task, availability, previousPlacement, config) {
     Math.ceil((task.estimatedDuration ?? 60) / config.minimumSlotMinutes) * config.minimumSlotMinutes;
   const travelBuffer = (task.travelMinutes ?? 0) + config.travelBufferMinutes;
   const earliestStartKey = previousPlacement ? previousPlacement.end.toISOString().slice(0, 10) : null;
+  const startConstraint = task.start ? new Date(task.start) : new Date();
+  const deadlineConstraint =
+    task.hasDeadline === false ? null : task.due ? new Date(task.due) : null;
 
   for (const [key, intervals] of availability.entries()) {
     const intervalSet = intervals;
@@ -111,7 +114,7 @@ export function allocateTask(task, availability, previousPlacement, config) {
       const slotLength = minutesBetween(interval.start, interval.end);
 
       if (slotLength < requiredMinutes) continue;
-      const proposedStart = new Date(interval.start);
+      let proposedStart = new Date(Math.max(interval.start.getTime(), startConstraint.getTime()));
       if (earliestStartKey && key === earliestStartKey && previousPlacement) {
         // Insert travel buffer if location changes
         if (previousPlacement.location && task.location && previousPlacement.location !== task.location) {
@@ -121,8 +124,20 @@ export function allocateTask(task, availability, previousPlacement, config) {
           proposedStart.setTime(previousPlacement.end.getTime() + travelBuffer * 60000);
         }
       }
-      const proposedEnd = new Date(proposedStart);
+      let proposedEnd = new Date(proposedStart);
       proposedEnd.setMinutes(proposedEnd.getMinutes() + requiredMinutes);
+
+      if (deadlineConstraint && proposedEnd > deadlineConstraint) {
+        // Try to pull the task earlier within the same interval to respect the deadline
+        const latestStart = new Date(deadlineConstraint.getTime() - requiredMinutes * 60000);
+        if (latestStart < interval.start || latestStart < startConstraint) {
+          continue;
+        }
+        proposedStart = new Date(Math.max(interval.start.getTime(), startConstraint.getTime(), latestStart.getTime()));
+        proposedEnd = new Date(proposedStart);
+        proposedEnd.setMinutes(proposedEnd.getMinutes() + requiredMinutes);
+        if (proposedEnd > deadlineConstraint || proposedEnd > interval.end) continue;
+      }
 
       if (proposedEnd > interval.end) continue;
 
@@ -282,7 +297,9 @@ function classifyEnergyBand(date, config) {
 function scoreTask(task, now, config) {
   const priorityScore = (clampPriority(task.priority ?? 3) / 5) * config.weights.priority;
   const dueDate = task.due ? new Date(task.due) : null;
-  const deadlineScore = dueDate
+  const deadlineScore = task.hasDeadline === false
+    ? 0
+    : dueDate
     ? (config.weights.deadline * 1) / Math.max(1, daysBetween(now, dueDate))
     : 0;
   const goalScore = task.goalId ? config.weights.goal : 0;

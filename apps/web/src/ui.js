@@ -16,7 +16,16 @@ const TIME_FORMATTER = new Intl.DateTimeFormat(undefined, {
   minute: '2-digit'
 });
 
-export function renderCalendar({ monthLabelEl, weekdayHeaderEl, gridEl, calendarMonth, selectedDate, schedule }) {
+export function renderCalendar({
+  monthLabelEl,
+  weekdayHeaderEl,
+  gridEl,
+  calendarMonth,
+  selectedDate,
+  schedule,
+  tasks = [],
+  assignments = []
+}) {
   if (!monthLabelEl || !gridEl) return;
   const monthDate = normalizeDate(calendarMonth);
   const selected = normalizeDate(selectedDate);
@@ -31,7 +40,7 @@ export function renderCalendar({ monthLabelEl, weekdayHeaderEl, gridEl, calendar
 
   const selectedIso = toISODate(selected);
   const todayIso = toISODate(new Date());
-  const markers = buildScheduleMarkers(schedule ?? []);
+  const markers = buildScheduleMarkers(schedule ?? [], tasks, assignments);
   const matrix = buildMonthMatrix(monthDate);
 
   gridEl.innerHTML = '';
@@ -63,15 +72,39 @@ export function renderCalendar({ monthLabelEl, weekdayHeaderEl, gridEl, calendar
   });
 }
 
-export function renderAgenda({ listEl, emptyEl, schedule, selectedDate }) {
+export function renderAgenda({ listEl, emptyEl, schedule, tasks = [], assignments = [], selectedDate }) {
   if (!listEl || !emptyEl) return;
   const iso = toISODate(selectedDate ?? new Date());
-  const events = (schedule ?? [])
-    .map((item) => ({
-      ...item,
-      start: new Date(item.start),
-      end: new Date(item.end)
-    }))
+  const scheduled = (schedule ?? []).map((item) => ({
+    ...item,
+    start: new Date(item.start),
+    end: new Date(item.end),
+    kind: 'scheduled'
+  }));
+  const taskEvents = tasks
+    .filter((task) => toISODate(task.due ?? task.start ?? task.due) === iso || toISODate(task.start) === iso)
+    .map((task) => {
+      const start = task.start ? new Date(task.start) : task.due ? new Date(task.due) : new Date(selectedDate);
+      const end = task.start
+        ? new Date(start.getTime() + Math.max(15, (task.estimatedDuration ?? 60)) * 60000)
+        : start;
+      return {
+        start,
+        end,
+        title: task.title,
+        metadata: { priority: task.priority, due: task.due, source: 'task' }
+      };
+    });
+  const assignmentEvents = assignments
+    .filter((assignment) => toISODate(assignment.due) === iso || toISODate(assignment.end) === iso)
+    .map((assignment) => ({
+      start: new Date(assignment.due),
+      end: assignment.end ? new Date(assignment.end) : new Date(assignment.due),
+      title: assignment.title,
+      metadata: { priority: assignment.priority, due: assignment.due, source: 'assignment' }
+    }));
+
+  const events = [...scheduled, ...taskEvents, ...assignmentEvents]
     .filter((item) => toISODate(item.start) === iso)
     .sort((a, b) => a.start - b.start);
 
@@ -141,7 +174,7 @@ export function renderInsightCards(container, insights) {
     .join('');
 }
 
-export function renderTasks(listEl, tasks = [], activeFilter = 'all') {
+export function renderTasks(listEl, tasks = [], segments = [], activeFilter = 'all') {
   if (!listEl) return;
   const normalized = tasks.map((task) => ({
     ...task,
@@ -160,24 +193,150 @@ export function renderTasks(listEl, tasks = [], activeFilter = 'all') {
   }
 
   filtered
-    .sort((a, b) => (b.priority ?? 0) - (a.priority ?? 0))
+    .sort((a, b) => {
+      if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1;
+      return (b.priority ?? 0) - (a.priority ?? 0);
+    })
     .forEach((task) => {
       const li = document.createElement('li');
       li.className = 'task-item';
       const duration = `${task.estimatedDuration ?? 60} min`;
       const categoryLabel = capitalize(task.category ?? 'general');
+      const isActive = Boolean(task.history?.find((h) => h.startedAt && !h.stoppedAt));
+      const completed = Boolean(task.isCompleted);
+      const taskSegments = segments.filter((seg) => seg.taskId === task.id);
+      const startText = task.start ? formatDateDisplay(task.start) : null;
+      const deadlineText = task.hasDeadline === false ? 'No deadline' : task.due ? formatDateDisplay(task.due) : 'No deadline';
+      const timerLabel = task.history?.length ? renderTaskTimerLabel(task) : '';
+      const segmentHtml = taskSegments
+        .map(
+          (seg) => `
+        <li class="segment-row">
+          <label class="checkbox">
+            <input type="checkbox" data-action="toggle-task-segment" data-segment-id="${seg.id}" ${
+              seg.isCompleted ? 'checked' : ''
+            } />
+            <span>${escapeHtml(seg.title)}</span>
+          </label>
+          <div class="segment-meta">
+            ${seg.due ? escapeHtml(formatDateDisplay(seg.due)) : 'No due'}
+            ${seg.estimatedDuration ? `• ${seg.estimatedDuration}m` : ''}
+            ${seg.history?.length ? `• ${escapeHtml(renderTaskTimerLabel(seg))}` : ''}
+          </div>
+          <div class="task-actions">
+            <button type="button" data-action="start-task-segment" data-segment-id="${seg.id}" class="ghost-button">Start</button>
+            <button type="button" data-action="pause-task-segment" data-segment-id="${seg.id}" class="ghost-button">Pause</button>
+            <button type="button" data-action="finish-task-segment" data-segment-id="${seg.id}" class="ghost-button">Done</button>
+            <button type="button" class="ghost-button" data-action="delete-task-segment" data-segment-id="${seg.id}">Remove</button>
+          </div>
+        </li>
+      `
+        )
+        .join('');
+
       li.innerHTML = `
         <div class="task-header">
           <span class="task-title">${escapeHtml(task.title)}</span>
           <span class="task-category">${escapeHtml(categoryLabel)}</span>
         </div>
-        <div class="task-meta">${duration} • Priority ${task.priority ?? 3}</div>
+        <div class="task-meta">
+          ${duration} • Priority ${task.priority ?? 3}
+          ${startText ? `• Starts ${escapeHtml(startText)}` : ''}
+          • ${escapeHtml(deadlineText)}
+        </div>
         <div class="task-actions">
+          <button type="button" data-action="toggle-complete" data-task-id="${task.id}" class="ghost-button">
+            ${completed ? 'Mark incomplete' : 'Mark complete'}
+          </button>
+          ${
+            isActive
+              ? `<button type="button" data-action="pause-task" data-task-id="${task.id}" class="ghost-button">Pause</button>`
+              : `<button type="button" data-action="start-task" data-task-id="${task.id}" class="ghost-button">${
+                  completed ? 'Restart' : 'Start'
+                }</button>`
+          }
+          <button type="button" data-action="finish-task" data-task-id="${task.id}" class="ghost-button">Done</button>
           <button type="button" data-task-id="${task.id}" class="ghost-button">Delete</button>
+        </div>
+        ${
+          isActive || task.history?.length
+            ? `<div class="task-timer">${renderTaskTimerLabel(task)}</div>`
+            : ''
+        }
+        <details class="assignment-edit">
+          <summary>Edit details</summary>
+          <form class="task-edit-form" data-task-id="${task.id}">
+            <div class="field">
+              <label>Title</label>
+              <input name="title" value="${escapeHtml(task.title)}" />
+            </div>
+            <div class="field">
+              <label>Description</label>
+              <textarea name="description">${escapeHtml(task.description ?? '')}</textarea>
+            </div>
+            <div class="field">
+              <label>Duration (min)</label>
+              <input name="duration" type="number" min="0" step="15" value="${task.estimatedDuration ?? 60}" />
+            </div>
+            <div class="field">
+              <label>Priority</label>
+              <input name="priority" type="number" min="1" max="5" value="${task.priority ?? 3}" />
+            </div>
+            <div class="field">
+              <label><input type="checkbox" name="hasDeadline" ${task.hasDeadline !== false ? 'checked' : ''} /> Has deadline</label>
+            </div>
+            <div class="field" data-time-row>
+              <label>Due</label>
+              <input name="due" type="datetime-local" value="${task.due ? toInputValue(task.due, false) : ''}" />
+            </div>
+            <div class="field">
+              <label>Start</label>
+              <input name="start" type="datetime-local" value="${task.start ? toInputValue(task.start, false) : ''}" />
+            </div>
+            <button type="submit" class="ghost-button">Save</button>
+          </form>
+        </details>
+        <div class="segments">
+          <h4>Segments</h4>
+          <ul class="segment-list">
+            ${segmentHtml || '<li class="muted">No segments yet.</li>'}
+          </ul>
+          <form class="segment-form" data-task-id="${task.id}">
+            <input name="title" placeholder="Add a segment" required />
+            <input name="due" type="date" />
+            <input name="minutes" type="number" min="0" step="15" placeholder="mins" />
+            <button type="submit" class="ghost-button">Add</button>
+          </form>
         </div>
       `;
       listEl.append(li);
     });
+}
+
+export function renderActiveTasks(listEl, tasks = []) {
+  if (!listEl) return;
+  listEl.innerHTML = '';
+  const active = tasks.filter((task) => task.history?.some((h) => h.startedAt && !h.stoppedAt));
+  if (!active.length) {
+    listEl.innerHTML = '<li class="empty-state">No running timers.</li>';
+    return;
+  }
+  active.forEach((task) => {
+    const li = document.createElement('li');
+    li.className = 'task-item';
+    li.innerHTML = `
+      <div class="task-header">
+        <span class="task-title">${escapeHtml(task.title)}</span>
+        <span class="task-category">Running</span>
+      </div>
+      <div class="task-meta">${renderTaskTimerLabel(task)}</div>
+      <div class="task-actions">
+        <button type="button" data-action="pause-task" data-task-id="${task.id}" class="ghost-button">Pause</button>
+        <button type="button" data-action="finish-task" data-task-id="${task.id}" class="ghost-button">Done</button>
+      </div>
+    `;
+    listEl.append(li);
+  });
 }
 
 export function updateTaskFilters(container, activeFilter) {
@@ -200,12 +359,20 @@ export function renderRoutines(listEl, routines = []) {
     const li = document.createElement('li');
     li.className = 'routine-item';
     const blocks = (routine.blocks ?? []).map((block) => formatRoutineBlock(block));
+    const timeline = renderRoutineTimeline(routine);
     li.innerHTML = `
       <div class="routine-header">
-        <span class="routine-name">${escapeHtml(routine.name ?? 'Routine')}</span>
-        <button type="button" class="ghost-button" data-routine-id="${routine.id}">Remove</button>
+        <span class="routine-name">${escapeHtml(routine.icon ?? '🔁')} ${escapeHtml(routine.name ?? 'Routine')}</span>
+        <div class="routine-controls">
+          <label class="checkbox">
+            <input type="checkbox" data-action="toggle-routine" data-routine-id="${routine.id}" ${routine.active !== false ? 'checked' : ''} />
+            <span>Enabled</span>
+          </label>
+          <button type="button" class="ghost-button" data-routine-id="${routine.id}">Remove</button>
+        </div>
       </div>
       <div class="routine-schedule">${blocks.join('<br />')}</div>
+      <div class="routine-timeline">${timeline}</div>
     `;
     listEl.append(li);
   });
@@ -245,6 +412,206 @@ export function formatSelectedHeading(date) {
   return `Countdown for ${LONG_DAY_FORMATTER.format(normalized)}`;
 }
 
+export function renderCountdowns({ listEl, tasks = [], assignments = [], selectedDate }) {
+  if (!listEl) return;
+  const now = new Date();
+  const targetDate = normalizeDate(selectedDate ?? now);
+  const iso = toISODate(targetDate);
+  const items = [
+    ...tasks
+      .filter((task) => toISODate(task.due ?? task.start ?? task.due) === iso && !task.isCompleted)
+      .map((task) => ({
+        title: task.title,
+        due: task.due ?? task.start ?? targetDate,
+        start: task.start,
+        duration: task.estimatedDuration ?? 60,
+        source: 'Task',
+        priority: task.priority
+      })),
+    ...assignments
+      .filter((assignment) => toISODate(assignment.due) === iso && !assignment.isCompleted)
+      .map((assignment) => ({
+        title: assignment.title,
+        due: assignment.due,
+        start: assignment.due,
+        duration: assignment.estimatedDuration ?? 60,
+        source: 'Assignment',
+        priority: assignment.priority
+      }))
+  ].sort((a, b) => new Date(a.due) - new Date(b.due));
+
+  listEl.innerHTML = '';
+  if (!items.length) {
+    listEl.innerHTML = '<li class="empty-state">No countdown items for this day.</li>';
+    return;
+  }
+
+  items.forEach((item) => {
+    const dueDate = new Date(item.due);
+    const remainingMs = dueDate - now;
+    const remainingText = remainingMs > 0 ? formatRemaining(remainingMs) : 'Past due';
+    const startText = item.start ? `Starts ${formatTimeRange(new Date(item.start), new Date(item.start))}` : '';
+    const meta = [item.source, startText, `Due ${LONG_DAY_FORMATTER.format(dueDate)}`]
+      .filter(Boolean)
+      .join(' • ');
+
+    const li = document.createElement('li');
+    li.className = 'countdown-item';
+    li.innerHTML = `
+      <div class="countdown-title">${escapeHtml(item.title)}</div>
+      <div class="countdown-meta">
+        <span>${escapeHtml(meta)}</span>
+        <span>Est. ${item.duration}m</span>
+      </div>
+      <div class="countdown-remaining">${escapeHtml(remainingText)}</div>
+    `;
+    listEl.append(li);
+  });
+}
+
+function formatRemaining(ms) {
+  const minutes = Math.max(0, Math.floor(ms / 60000));
+  const hours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+  if (hours > 0) return `${hours}h ${mins}m left`;
+  return `${mins}m left`;
+}
+
+export function renderAssignments(listEl, assignments = [], segments = []) {
+  if (!listEl) return;
+  listEl.innerHTML = '';
+  if (!assignments.length) {
+    listEl.innerHTML = '<li class="empty-state">Import your Canvas ICS to see assignments.</li>';
+    return;
+  }
+
+  const sorted = [...assignments].sort((a, b) => (new Date(a.due || 0) - new Date(b.due || 0)));
+  sorted.forEach((assignment) => {
+    const segmentList = segments.filter((seg) => seg.assignmentId === assignment.id);
+    const dueText = assignment.allDay ? formatDateOnly(assignment.due) + ' • All day' : formatDateDisplay(assignment.due);
+    const duration = assignment.estimatedDuration ?? 0;
+    const completed = assignment.isCompleted;
+    const course = assignment.course ? `<span class="pill">${escapeHtml(assignment.course)}</span>` : '';
+    const status = completed ? '<span class="status-pill done">Done</span>' : '';
+    const isRunning = assignment.history?.some((h) => h.startedAt && !h.stoppedAt);
+    const timerLabel = assignment.history?.length ? renderTaskTimerLabel(assignment) : '';
+    const segmentHtml = segmentList
+      .map(
+        (seg) => `
+        <li class="segment-row">
+          <label class="checkbox">
+            <input type="checkbox" data-action="toggle-segment" data-segment-id="${seg.id}" ${
+              seg.isCompleted ? 'checked' : ''
+            } />
+            <span>${escapeHtml(seg.title)}</span>
+          </label>
+          <div class="segment-meta">
+            ${seg.due ? escapeHtml(formatDateDisplay(seg.due)) : 'No due'}
+            ${seg.estimatedDuration ? `• ${seg.estimatedDuration}m` : ''}
+            ${seg.history?.length ? `• ${escapeHtml(renderTaskTimerLabel(seg))}` : ''}
+          </div>
+          <div class="task-actions">
+            <button type="button" data-action="start-segment" data-segment-id="${seg.id}" class="ghost-button">Start</button>
+            <button type="button" data-action="pause-segment" data-segment-id="${seg.id}" class="ghost-button">Pause</button>
+            <button type="button" data-action="finish-segment" data-segment-id="${seg.id}" class="ghost-button">Done</button>
+            <button type="button" class="ghost-button" data-action="delete-segment" data-segment-id="${seg.id}">Remove</button>
+          </div>
+        </li>
+      `
+      )
+      .join('');
+
+    listEl.insertAdjacentHTML(
+      'beforeend',
+      `
+      <li class="assignment-card" data-assignment-id="${assignment.id}">
+        <div class="assignment-header">
+          <div>
+            <button type="button" class="ghost-button" data-action="toggle-assignment" data-assignment-id="${assignment.id}">
+              ${completed ? 'Mark incomplete' : 'Mark complete'}
+            </button>
+            ${status}
+          </div>
+          <div class="assignment-meta">
+            <span>${escapeHtml(assignment.title)}</span>
+            ${course}
+            <span class="muted">Due ${escapeHtml(dueText)}</span>
+          </div>
+        </div>
+        <div class="assignment-body">
+          ${assignment.description ? `<p class="muted">${escapeHtml(assignment.description)}</p>` : ''}
+          ${assignment.location ? `<p class="muted"><strong>Location:</strong> ${escapeHtml(assignment.location)}</p>` : ''}
+          <div class="task-actions">
+            <button type="button" data-action="start-assignment" data-assignment-id="${assignment.id}" class="ghost-button">
+              ${isRunning ? 'Resume' : 'Start'}
+            </button>
+            <button type="button" data-action="pause-assignment" data-assignment-id="${assignment.id}" class="ghost-button">Pause</button>
+            <button type="button" data-action="finish-assignment" data-assignment-id="${assignment.id}" class="ghost-button">Done</button>
+          </div>
+          ${timerLabel ? `<div class="countdown-meta">Elapsed: ${escapeHtml(timerLabel)}</div>` : ''}
+          <div class="field-row compact">
+            <label>Duration (min)</label>
+            <input type="number" min="0" step="15" value="${duration}" data-action="update-duration" data-assignment-id="${assignment.id}" />
+          </div>
+          ${assignment.url ? `<a class="muted" href="${escapeHtml(assignment.url)}" target="_blank" rel="noreferrer">Open in Canvas</a>` : ''}
+        </div>
+        <details class="assignment-edit">
+          <summary>Edit details</summary>
+          <form class="assignment-edit-form" data-assignment-id="${assignment.id}">
+            <div class="field">
+              <label>Title</label>
+              <input name="title" value="${escapeHtml(assignment.title)}" />
+            </div>
+            <div class="field">
+              <label>Course</label>
+              <input name="course" value="${escapeHtml(assignment.course ?? '')}" />
+            </div>
+            <div class="field">
+              <label>Location</label>
+              <input name="location" value="${escapeHtml(assignment.location ?? '')}" />
+            </div>
+            <div class="field">
+              <label>Duration (min)</label>
+              <input name="duration" type="number" min="0" step="15" value="${duration}" />
+            </div>
+            <div class="field">
+              <label><input type="checkbox" name="allDay" ${assignment.allDay ? 'checked' : ''} /> All day</label>
+            </div>
+            <div class="field" data-time-row>
+              <label>Due</label>
+              <input name="due" type="${assignment.allDay ? 'date' : 'datetime-local'}" value="${
+                assignment.due ? toInputValue(assignment.due, assignment.allDay) : ''
+              }" />
+            </div>
+            <div class="field">
+              <label>Canvas URL</label>
+              <input name="url" type="url" value="${escapeHtml(assignment.url ?? '')}" />
+            </div>
+            <div class="field">
+              <label>Description</label>
+              <textarea name="description">${escapeHtml(assignment.description ?? '')}</textarea>
+            </div>
+            <button type="submit" class="ghost-button">Save</button>
+          </form>
+        </details>
+        <div class="segments">
+          <h4>Segments</h4>
+          <ul class="segment-list">
+            ${segmentHtml || '<li class="muted">No segments yet.</li>'}
+          </ul>
+          <form class="segment-form" data-assignment-id="${assignment.id}">
+            <input name="title" placeholder="Add a segment" required />
+            <input name="due" type="date" />
+            <input name="minutes" type="number" min="0" step="15" placeholder="mins" />
+            <button type="submit" class="ghost-button">Add</button>
+          </form>
+        </div>
+      </li>
+    `
+    );
+  });
+}
+
 // ---- helpers ----
 
 function buildMonthMatrix(anchor = new Date()) {
@@ -260,10 +627,20 @@ function buildMonthMatrix(anchor = new Date()) {
   return result;
 }
 
-function buildScheduleMarkers(schedule) {
+function buildScheduleMarkers(schedule, tasks = [], assignments = []) {
   const markers = new Map();
   (schedule ?? []).forEach((item) => {
     const iso = toISODate(new Date(item.start));
+    markers.set(iso, (markers.get(iso) ?? 0) + 1);
+  });
+  tasks.forEach((task) => {
+    const iso = toISODate(task.due ?? task.start);
+    if (!iso) return;
+    markers.set(iso, (markers.get(iso) ?? 0) + 1);
+  });
+  assignments.forEach((assignment) => {
+    const iso = toISODate(assignment.due);
+    if (!iso) return;
     markers.set(iso, (markers.get(iso) ?? 0) + 1);
   });
   return markers;
@@ -275,6 +652,37 @@ function formatRoutineBlock(block) {
   const end = new Date(block.end);
   const day = WEEKDAY_LABELS[start.getDay()];
   return `${day} • ${formatTimeRange(start, end)}`;
+}
+
+function renderRoutineTimeline(routine) {
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const blocksByDay = new Map();
+  (routine.blocks ?? []).forEach((block) => {
+    const start = new Date(block.start);
+    const end = new Date(block.end);
+    const day = start.getDay();
+    if (!blocksByDay.has(day)) blocksByDay.set(day, []);
+    blocksByDay.get(day).push({ start, end, context: block.context });
+  });
+
+  return days
+    .map((label, idx) => {
+      const dayBlocks = blocksByDay.get(idx) ?? [];
+      const bars = dayBlocks
+        .map((block) => {
+          const duration = Math.max(0.25, (block.end - block.start) / (60 * 60 * 1000));
+          const offset = (block.start.getHours() + block.start.getMinutes() / 60) / 24;
+          const width = Math.min(1, duration / 24);
+          const color = routine.color ?? '#60a5fa';
+          return `<div class="routine-block" style="background:${color}30;"><span style="color:${color}; left:${Math.min(
+            80,
+            offset * 100
+          )}%">${escapeHtml(routine.icon ?? '🔁')}</span><div style="width:${width * 100}%; background:${color}; height:100%; opacity:0.75;"></div></div>`;
+        })
+        .join('') || '<div class="routine-block" style="background:rgba(255,255,255,0.1);"></div>';
+      return `<div class="routine-day"><label>${label}</label>${bars}</div>`;
+    })
+    .join('');
 }
 
 function formatTimeRange(start, end) {
@@ -308,4 +716,48 @@ function escapeHtml(value = '') {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+}
+
+function formatDateDisplay(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return 'No due date';
+  return LONG_DAY_FORMATTER.format(date);
+}
+
+function formatDateOnly(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return 'No due date';
+  return date.toLocaleDateString();
+}
+
+function renderTaskTimerLabel(task) {
+  const history = Array.isArray(task.history) ? task.history : [];
+  let elapsedMs = 0;
+  history.forEach((entry) => {
+    const start = entry.startedAt ? new Date(entry.startedAt) : null;
+    const stop = entry.stoppedAt ? new Date(entry.stoppedAt) : null;
+    if (start) {
+      const end = stop ?? new Date();
+      elapsedMs += Math.max(0, end - start);
+    }
+  });
+  const totalMinutes = Math.floor(elapsedMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  const active = history.some((h) => h.startedAt && !h.stoppedAt);
+  const parts = [];
+  if (hours > 0) parts.push(`${hours}h`);
+  parts.push(`${minutes}m`);
+  return `${parts.join(' ')} ${active ? 'elapsed (running)' : 'elapsed'}`;
+}
+
+function toInputValue(dateValue, allDay = false) {
+  const d = dateValue instanceof Date ? dateValue : new Date(dateValue);
+  if (Number.isNaN(d.getTime())) return '';
+  if (allDay) {
+    return d.toISOString().slice(0, 10);
+  }
+  const offset = d.getTimezoneOffset();
+  const local = new Date(d.getTime() - offset * 60000);
+  return local.toISOString().slice(0, 16);
 }

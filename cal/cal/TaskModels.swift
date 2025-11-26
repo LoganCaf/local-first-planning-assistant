@@ -15,6 +15,8 @@ struct TaskItem: Identifiable, Equatable, Codable {
     var actualStartTime: Date?
     var actualEndTime: Date?
     var actualDurationSeconds: Double?
+    var activeTimerStart: Date?
+    var hasDeadline: Bool
 
     init(
         id: UUID = UUID(),
@@ -28,7 +30,9 @@ struct TaskItem: Identifiable, Equatable, Codable {
         travelEstimates: TravelEstimates? = nil,
         actualStartTime: Date? = nil,
         actualEndTime: Date? = nil,
-        actualDurationSeconds: Double? = nil
+        actualDurationSeconds: Double? = nil,
+        activeTimerStart: Date? = nil,
+        hasDeadline: Bool = true
     ) {
         self.id = id
         self.title = title
@@ -42,6 +46,8 @@ struct TaskItem: Identifiable, Equatable, Codable {
         self.actualStartTime = actualStartTime
         self.actualEndTime = actualEndTime
         self.actualDurationSeconds = actualDurationSeconds
+        self.activeTimerStart = activeTimerStart
+        self.hasDeadline = hasDeadline
     }
 
     private enum CodingKeys: String, CodingKey {
@@ -57,6 +63,8 @@ struct TaskItem: Identifiable, Equatable, Codable {
         case actualStartTime
         case actualEndTime
         case actualDurationSeconds
+        case activeTimerStart
+        case hasDeadline
     }
 
     init(from decoder: Decoder) throws {
@@ -73,6 +81,8 @@ struct TaskItem: Identifiable, Equatable, Codable {
         actualStartTime = try container.decodeIfPresent(Date.self, forKey: .actualStartTime)
         actualEndTime = try container.decodeIfPresent(Date.self, forKey: .actualEndTime)
         actualDurationSeconds = try container.decodeIfPresent(Double.self, forKey: .actualDurationSeconds)
+        activeTimerStart = try container.decodeIfPresent(Date.self, forKey: .activeTimerStart)
+        hasDeadline = try container.decodeIfPresent(Bool.self, forKey: .hasDeadline) ?? true
     }
 
     func encode(to encoder: Encoder) throws {
@@ -89,6 +99,62 @@ struct TaskItem: Identifiable, Equatable, Codable {
         try container.encodeIfPresent(actualStartTime, forKey: .actualStartTime)
         try container.encodeIfPresent(actualEndTime, forKey: .actualEndTime)
         try container.encodeIfPresent(actualDurationSeconds, forKey: .actualDurationSeconds)
+        try container.encodeIfPresent(activeTimerStart, forKey: .activeTimerStart)
+        try container.encode(hasDeadline, forKey: .hasDeadline)
+    }
+}
+
+enum TaskSegmentParent: String, Codable {
+    case todo
+    case assignment
+}
+
+struct TaskSegment: Identifiable, Equatable, Codable {
+    let id: UUID
+    var parentType: TaskSegmentParent
+    var parentIdentifier: String
+    var title: String
+    var dueDate: Date
+    var startDate: Date?
+    var hasDeadline: Bool
+    var priority: TaskPriority
+    var isCompleted: Bool
+    var estimatedDurationMinutes: Int?
+    var actualStartTime: Date?
+    var actualEndTime: Date?
+    var actualDurationSeconds: Double?
+    var activeTimerStart: Date?
+
+    init(
+        id: UUID = UUID(),
+        parentType: TaskSegmentParent,
+        parentIdentifier: String,
+        title: String,
+        dueDate: Date,
+        startDate: Date? = nil,
+        hasDeadline: Bool = true,
+        priority: TaskPriority = .medium,
+        isCompleted: Bool = false,
+        estimatedDurationMinutes: Int? = nil,
+        actualStartTime: Date? = nil,
+        actualEndTime: Date? = nil,
+        actualDurationSeconds: Double? = nil,
+        activeTimerStart: Date? = nil
+    ) {
+        self.id = id
+        self.parentType = parentType
+        self.parentIdentifier = parentIdentifier
+        self.title = title
+        self.dueDate = dueDate
+        self.startDate = startDate
+        self.hasDeadline = hasDeadline
+        self.priority = priority
+        self.isCompleted = isCompleted
+        self.estimatedDurationMinutes = estimatedDurationMinutes
+        self.actualStartTime = actualStartTime
+        self.actualEndTime = actualEndTime
+        self.actualDurationSeconds = actualDurationSeconds
+        self.activeTimerStart = activeTimerStart
     }
 }
 

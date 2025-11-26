@@ -76,6 +76,7 @@ export function generateId() {
  */
 export function createTask(input) {
   const now = new Date();
+  const hasDeadline = input.hasDeadline !== false;
   return {
     id: input.id ?? generateId(),
     title: input.title?.trim() ?? 'Untitled Task',
@@ -84,13 +85,22 @@ export function createTask(input) {
     tags: Array.isArray(input.tags) ? [...new Set(input.tags.map((t) => t.trim()))] : [],
     priority: clampPriority(input.priority ?? DEFAULT_PRIORITY),
     due: normalizeDate(input.due),
-    hardDeadline: Boolean(input.hardDeadline),
+    start: normalizeDate(input.start ?? input.startDate),
+    hasDeadline,
+    hardDeadline: input.hardDeadline ?? hasDeadline,
     dependencies: Array.isArray(input.dependencies) ? [...new Set(input.dependencies)] : [],
     projectId: input.projectId ?? null,
     goalId: input.goalId ?? null,
     location: input.location ?? null,
     travelMinutes: typeof input.travelMinutes === 'number' ? Math.max(0, input.travelMinutes) : 0,
-    history: Array.isArray(input.history) ? [...input.history] : [],
+    history: Array.isArray(input.history)
+      ? input.history.map((entry) => ({
+          startedAt: entry.startedAt ? new Date(entry.startedAt) : null,
+          stoppedAt: entry.stoppedAt ? new Date(entry.stoppedAt) : null,
+          note: entry.note ?? null
+        }))
+      : [],
+    isCompleted: Boolean(input.isCompleted),
     categoryWeights: input.categoryWeights ?? {},
     createdAt: input.createdAt ? new Date(input.createdAt) : now,
     updatedAt: now
@@ -114,10 +124,100 @@ export function createRoutine(input) {
       locked: Boolean(block.locked)
     })),
     active: input.active !== false,
+    color: input.color ?? '#60a5fa',
+    icon: input.icon ?? '🔁',
     pauses: (input.pauses ?? []).map((pause) => ({
       start: normalizeDate(pause.start) ?? new Date(),
       end: normalizeDate(pause.end) ?? new Date()
     }))
+  };
+}
+
+/**
+ * Normalize assignment input (Canvas-style).
+ * @param {Object} input
+ * @returns {Object}
+ */
+export function createAssignment(input = {}) {
+  const now = new Date();
+  const hasDeadline = input.hasDeadline !== false;
+  return {
+    id: input.id ?? generateId(),
+    title: input.title?.trim() || 'Untitled assignment',
+    description: input.description ?? '',
+    course: input.course ?? '',
+    location: input.location ?? '',
+    url: input.url ?? '',
+    start: normalizeDate(input.start),
+    due: normalizeDate(input.due),
+    end: normalizeDate(input.end) ?? normalizeDate(input.due),
+    allDay: Boolean(input.allDay),
+    hasDeadline,
+    estimatedDuration: normalizeDuration(input.estimatedDuration ?? 0),
+    isCompleted: Boolean(input.isCompleted),
+    history: Array.isArray(input.history)
+      ? input.history.map((entry) => ({
+          startedAt: entry.startedAt ? new Date(entry.startedAt) : null,
+          stoppedAt: entry.stoppedAt ? new Date(entry.stoppedAt) : null,
+          note: entry.note ?? null
+        }))
+      : [],
+    createdAt: input.createdAt ? new Date(input.createdAt) : now,
+    updatedAt: now,
+    source: input.source ?? 'manual'
+  };
+}
+
+/**
+ * Normalize an assignment segment (sub-task).
+ * @param {Object} input
+ * @returns {Object}
+ */
+export function createAssignmentSegment(input = {}) {
+  const now = new Date();
+  return {
+    id: input.id ?? generateId(),
+    assignmentId: input.assignmentId,
+    title: input.title?.trim() || 'Step',
+    due: normalizeDate(input.due),
+    start: normalizeDate(input.start),
+    estimatedDuration: normalizeDuration(input.estimatedDuration ?? 0),
+    isCompleted: Boolean(input.isCompleted),
+    history: Array.isArray(input.history)
+      ? input.history.map((entry) => ({
+          startedAt: entry.startedAt ? new Date(entry.startedAt) : null,
+          stoppedAt: entry.stoppedAt ? new Date(entry.stoppedAt) : null
+        }))
+      : [],
+    createdAt: input.createdAt ? new Date(input.createdAt) : now,
+    updatedAt: now
+  };
+}
+
+/**
+ * Normalize todo task segment.
+ * @param {Object} input
+ * @returns {Object}
+ */
+export function createTaskSegment(input = {}) {
+  const now = new Date();
+  return {
+    id: input.id ?? generateId(),
+    taskId: input.taskId,
+    title: input.title?.trim() || 'Step',
+    start: normalizeDate(input.start),
+    due: normalizeDate(input.due),
+    hasDeadline: input.hasDeadline !== false,
+    estimatedDuration: normalizeDuration(input.estimatedDuration ?? 0),
+    isCompleted: Boolean(input.isCompleted),
+    history: Array.isArray(input.history)
+      ? input.history.map((entry) => ({
+          startedAt: entry.startedAt ? new Date(entry.startedAt) : null,
+          stoppedAt: entry.stoppedAt ? new Date(entry.stoppedAt) : null
+        }))
+      : [],
+    createdAt: input.createdAt ? new Date(input.createdAt) : now,
+    updatedAt: now
   };
 }
 
@@ -177,4 +277,10 @@ export function normalizeTaskInput(input) {
         }))
       : []
   });
+}
+
+function normalizeDuration(value) {
+  const n = Math.round(Number(value ?? 0));
+  if (Number.isNaN(n) || n < 0) return 0;
+  return n;
 }

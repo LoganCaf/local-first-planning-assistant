@@ -41,6 +41,10 @@
             </div>
             <ul id="agenda-list" class="agenda-list"></ul>
           </div>
+          <div class="countdown-panel glass">
+            <h3>Countdown</h3>
+            <ul id="countdown-list" class="countdown-list"></ul>
+          </div>
           <div class="insights-panel glass">
             <h3>Weekly snapshot</h3>
             <div id="insight-cards" class="insight-grid"></div>
@@ -74,6 +78,15 @@
               <label for="task-priority">Priority</label>
               <input id="task-priority" name="priority" type="number" min="1" max="5" value="3" />
             </div>
+            <div class="field">
+              <label for="task-start">Earliest start</label>
+              <input id="task-start" name="start" type="datetime-local" />
+            </div>
+            <div class="field-row">
+              <label><input id="task-has-deadline" name="hasDeadline" type="checkbox" checked /> Has deadline</label>
+              <label for="task-due">Deadline</label>
+              <input id="task-due" name="due" type="datetime-local" />
+            </div>
             <div class="field-row">
               <label for="task-category">Category</label>
               <select id="task-category" name="category">
@@ -91,7 +104,35 @@
             </div>
             <button type="submit" class="primary-button">Add task</button>
           </form>
+          <div class="glass active-tracking">
+            <h3>Active timers</h3>
+            <ul id="task-active-list" class="task-list compact"></ul>
+          </div>
           <ul id="task-list" class="task-list glass"></ul>
+        </section>
+
+        <section data-view="assignments" id="assignments-view" class="view view--assignments">
+          <header class="view-header">
+            <h2>Assignments</h2>
+          </header>
+          <div class="form-card glass">
+            <div class="field">
+              <label for="assignment-file">Import Canvas ICS</label>
+              <input id="assignment-file" type="file" accept=".ics,text/calendar" />
+              <p class="hint">Choose the ICS export from Canvas to populate your assignments.</p>
+            </div>
+            <button id="assignment-import" class="primary-button" type="button">Import assignments</button>
+            <div class="field">
+              <label for="assignment-url">Import from URL</label>
+              <input id="assignment-url" type="url" placeholder="https://canvas.example.com/assignments.ics" />
+            </div>
+            <div class="button-row">
+              <button id="assignment-import-url" class="ghost-button" type="button">Import from URL</button>
+              <button id="assignment-sync" class="ghost-button" type="button">Re-sync</button>
+            </div>
+            <p id="assignment-import-status" class="hint" aria-live="polite"></p>
+          </div>
+          <ul id="assignment-list" class="assignment-list glass"></ul>
         </section>
 
         <section data-view="routines" id="routines-view" class="view view--routines">
@@ -102,6 +143,23 @@
             <div class="field">
               <label for="routine-name">Name</label>
               <input id="routine-name" name="name" placeholder="Morning routine" required />
+            </div>
+            <div class="field-row">
+              <label>
+                <span>Icon</span>
+                <select name="icon">
+                  <option>🔁</option>
+                  <option>🌅</option>
+                  <option>🌙</option>
+                  <option>📚</option>
+                  <option>🏋️</option>
+                  <option>💻</option>
+                </select>
+              </label>
+              <label>
+                <span>Color</span>
+                <input type="color" name="color" value="#60a5fa" />
+              </label>
             </div>
             <div class="time-row">
               <label>
@@ -123,6 +181,10 @@
               <label><input type="checkbox" name="day" value="5" checked />Fri</label>
               <label><input type="checkbox" name="day" value="6" />Sat</label>
             </fieldset>
+            <label class="checkbox">
+              <input type="checkbox" name="active" checked />
+              <span>Enable routine</span>
+            </label>
             <button type="submit" class="primary-button">Save routine</button>
           </form>
           <ul id="routine-list" class="routine-list glass"></ul>
@@ -150,6 +212,10 @@
         <button type="button" data-tab="tasks" class="tab-button">
           <span class="icon">✅</span>
           <span>Tasks</span>
+        </button>
+        <button type="button" data-tab="assignments" class="tab-button">
+          <span class="icon">📚</span>
+          <span>Assignments</span>
         </button>
         <button type="button" data-tab="routines" class="tab-button">
           <span class="icon">🔁</span>

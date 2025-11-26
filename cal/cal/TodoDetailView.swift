@@ -7,11 +7,17 @@ struct TodoDetailView: View {
     @Environment(\.calendar) private var calendar
     @State private var isPresentingEditSheet = false
     @State private var draft = DraftTask()
+    @State private var isPresentingSegmentSheet = false
+    @State private var segmentDraft = TaskSegmentDraft()
+    @State private var editingSegment: TaskSegment?
 
     private var todo: TaskItem? {
         data.todos.first(where: { $0.id == todoID })
     }
 
+    private var segments: [TaskSegment] {
+        data.segments(for: .todo, parentIdentifier: todoID.uuidString)
+    }
     var body: some View {
         Group {
             if let todo = todo {
@@ -84,6 +90,8 @@ struct TodoDetailView: View {
                             }
                         }
                     }
+
+                    segmentSection(for: todo)
                 }
                 .listStyle(.insetGrouped)
                 .navigationTitle("Todo Detail")
@@ -105,6 +113,38 @@ struct TodoDetailView: View {
                         updated.priority = draft.priority
                         updated.estimatedDurationMinutes = draft.estimatedDurationMinutes
                         data.update(task: updated)
+                    }
+                }
+                .sheet(isPresented: $isPresentingSegmentSheet) {
+                    let parentName = todo.title
+                    TaskSegmentEditorSheet(
+                        mode: editingSegment == nil ? .create : .edit,
+                        draft: $segmentDraft,
+                        parentName: parentName
+                    ) { draft in
+                        if let existing = editingSegment {
+                            var updated = existing
+                            updated.title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                            updated.dueDate = draft.dueDate
+                            updated.startDate = draft.startDate
+                            updated.hasDeadline = draft.hasDeadline
+                            updated.priority = draft.priority
+                            updated.estimatedDurationMinutes = draft.estimatedDurationMinutes
+                            data.update(segment: updated)
+                        } else {
+                            let newSegment = TaskSegment(
+                                parentType: .todo,
+                                parentIdentifier: todo.id.uuidString,
+                                title: draft.title.trimmingCharacters(in: .whitespacesAndNewlines),
+                                dueDate: draft.dueDate,
+                                startDate: draft.startDate,
+                                hasDeadline: draft.hasDeadline,
+                                priority: draft.priority,
+                                estimatedDurationMinutes: draft.estimatedDurationMinutes
+                            )
+                            data.add(segment: newSegment)
+                        }
+                        editingSegment = nil
                     }
                 }
             } else {
@@ -157,6 +197,68 @@ struct TodoDetailView: View {
                 .foregroundStyle(.secondary)
             Spacer()
             Text(value)
+        }
+    }
+
+    @ViewBuilder
+    private func segmentSection(for todo: TaskItem) -> some View {
+        Section("Segments") {
+            if segments.isEmpty {
+                Text("No segments yet. Tap the button below to create one.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(segments) { segment in
+                    TaskSegmentRow(
+                        segment: segment,
+                        onToggleCompletion: {
+                            data.toggleSegmentCompletion(id: segment.id)
+                        },
+                        onStart: {
+                            data.startSegmentProgress(id: segment.id)
+                        },
+                        onPause: {
+                            data.pauseSegmentProgress(id: segment.id)
+                        },
+                        onFinish: {
+                            data.completeSegmentProgress(id: segment.id)
+                        },
+                        onEdit: {
+                            segmentDraft = TaskSegmentDraft(segment: segment)
+                            editingSegment = segment
+                            isPresentingSegmentSheet = true
+                        }
+                    )
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) {
+                            data.removeSegment(id: segment.id)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+                    .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                        Button {
+                            segmentDraft = TaskSegmentDraft(segment: segment)
+                            editingSegment = segment
+                            isPresentingSegmentSheet = true
+                        } label: {
+                            Label("Edit", systemImage: "pencil")
+                        }
+                        .tint(.blue)
+                    }
+                }
+            }
+
+            Button {
+                segmentDraft = TaskSegmentDraft()
+                segmentDraft.dueDate = todo.dueDate
+                segmentDraft.hasDeadline = todo.hasDeadline
+                segmentDraft.startDate = todo.startDate
+                isPresentingSegmentSheet = true
+                editingSegment = nil
+            } label: {
+                Label("Add segment", systemImage: "plus")
+            }
         }
     }
 }

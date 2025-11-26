@@ -13,6 +13,13 @@ enum Weekday: Int, CaseIterable, Codable, Identifiable {
         guard symbols.indices.contains(index) else { return "" }
         return symbols[index]
     }
+
+    var localizedTinyName: String {
+        let symbols = Calendar.current.veryShortStandaloneWeekdaySymbols
+        let index = rawValue - 1
+        guard symbols.indices.contains(index) else { return localizedShortName }
+        return symbols[index]
+    }
 }
 
 struct RoutineItem: Identifiable, Equatable {
@@ -23,8 +30,18 @@ struct RoutineItem: Identifiable, Equatable {
     var isEnabled: Bool
     var weekdays: Set<Int> // 1 = Sunday ... 7 = Saturday
     var iconName: String
+    var colorHex: String
 
-    init(id: UUID = UUID(), title: String, startTime: DateComponents = Calendar.current.dateComponents([.hour, .minute], from: Date()), endTime: DateComponents? = nil, isEnabled: Bool = true, weekdays: Set<Int>? = nil, iconName: String = "repeat") {
+    init(
+        id: UUID = UUID(),
+        title: String,
+        startTime: DateComponents = Calendar.current.dateComponents([.hour, .minute], from: Date()),
+        endTime: DateComponents? = nil,
+        isEnabled: Bool = true,
+        weekdays: Set<Int>? = nil,
+        iconName: String = "repeat",
+        colorHex: String = RoutineItem.defaultColorHex
+    ) {
         self.id = id
         self.title = title
         self.startTime = startTime
@@ -43,6 +60,7 @@ struct RoutineItem: Identifiable, Equatable {
             self.weekdays = Set(1...7)
         }
         self.iconName = iconName
+        self.colorHex = colorHex
     }
 
     var isEveryDay: Bool {
@@ -69,7 +87,7 @@ struct RoutineItem: Identifiable, Equatable {
 // Backwards-compatible Codable conformance: older JSON may not include iconName
 extension RoutineItem: Codable {
     enum CodingKeys: String, CodingKey {
-        case id, title, startTime, endTime, isEnabled, weekdays, iconName
+        case id, title, startTime, endTime, isEnabled, weekdays, iconName, colorHex
     }
 
     init(from decoder: Decoder) throws {
@@ -81,6 +99,7 @@ extension RoutineItem: Codable {
         isEnabled = try container.decodeIfPresent(Bool.self, forKey: .isEnabled) ?? true
         weekdays = try container.decodeIfPresent(Set<Int>.self, forKey: .weekdays) ?? Set(1...7)
         iconName = try container.decodeIfPresent(String.self, forKey: .iconName) ?? "repeat"
+        colorHex = try container.decodeIfPresent(String.self, forKey: .colorHex) ?? RoutineItem.defaultColorHex
     }
 
     func encode(to encoder: Encoder) throws {
@@ -92,5 +111,14 @@ extension RoutineItem: Codable {
         try container.encode(isEnabled, forKey: .isEnabled)
         try container.encode(weekdays, forKey: .weekdays)
         try container.encode(iconName, forKey: .iconName)
+        try container.encode(colorHex, forKey: .colorHex)
+    }
+}
+
+extension RoutineItem {
+    static let defaultColorHex = "#4F8DFF"
+
+    var color: Color {
+        Color(hex: colorHex)
     }
 }

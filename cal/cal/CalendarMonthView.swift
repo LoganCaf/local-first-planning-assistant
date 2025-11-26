@@ -3,6 +3,8 @@ import SwiftUI
 struct CalendarMonthView: View {
     @State private var monthAnchor: Date
     @State private var selectedDate: Date?
+    @State private var isPresentingYearPicker = false
+    @State private var yearPickerSelection: Int
     private let calendar: Calendar
     private let onDayTap: ((Date) -> Void)?
     private let eventsProvider: ((Date) -> Int?)?
@@ -17,8 +19,12 @@ struct CalendarMonthView: View {
         self.calendar = configuredCalendar
         let now = Date()
         let initialMonth = configuredCalendar.startOfMonth(for: now) ?? now
-        _monthAnchor = State(initialValue: configuredCalendar.clampedMonth(initialMonth))
+        let clamped = configuredCalendar.clampedMonth(initialMonth)
+        _monthAnchor = State(initialValue: clamped)
         _selectedDate = State(initialValue: configuredCalendar.clampedDay(now))
+        let initialYear = configuredCalendar.component(.year, from: clamped)
+        _isPresentingYearPicker = State(initialValue: false)
+        _yearPickerSelection = State(initialValue: initialYear)
         self.onDayTap = onDayTap
         self.eventsProvider = eventsProvider
     }
@@ -31,6 +37,26 @@ struct CalendarMonthView: View {
         }
         .padding()
         .animation(.easeInOut(duration: 0.2), value: monthAnchor)
+        .sheet(isPresented: $isPresentingYearPicker) {
+            NavigationStack {
+                VStack(spacing: 24) {
+                    yearSelector
+                    monthGridForSelection
+                    Spacer()
+                }
+                .padding(.top)
+                .navigationTitle("")
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("Cancel") {
+                            yearPickerSelection = calendar.component(.year, from: monthAnchor)
+                            isPresentingYearPicker = false
+                        }
+                    }
+                }
+            }
+            .presentationDetents([.medium, .large])
+        }
     }
 }
 
@@ -49,8 +75,21 @@ private extension CalendarMonthView {
 
             Text(monthFormatter.string(from: monthAnchor))
                 .font(.title2.bold())
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    yearPickerSelection = calendar.component(.year, from: monthAnchor)
+                    isPresentingYearPicker = true
+                }
 
             Spacer()
+
+            Button("Today") {
+                jumpToMonth(Date())
+            }
+            .font(.subheadline.weight(.semibold))
+            .buttonStyle(.borderless)
+            .padding(.horizontal, -10)
+            .accessibilityLabel("Jump to current month")
 
             Button {
                 shiftMonth(by: 1)
@@ -158,11 +197,101 @@ private extension CalendarMonthView {
         }
         monthAnchor = calendar.clampedMonth(updatedMonth)
         selectedDate = calendar.clampedDay(monthAnchor)
+        yearPickerSelection = calendar.component(.year, from: monthAnchor)
+
+        // Update selection so the day stays within the new month when possible
+        if let selected = selectedDate,
+           !calendar.isDate(selected, equalTo: monthAnchor, toGranularity: .month) {
+            selectedDate = calendar.clampedDay(monthAnchor)
+        }
     }
 
     func dayMatchesSelected(_ date: Date) -> Bool {
         guard let selectedDate else { return false }
         return calendar.isDate(date, inSameDayAs: selectedDate)
+    }
+
+    func jumpToMonth(_ date: Date) {
+        let clamped = calendar.clampedMonth(date)
+        monthAnchor = clamped
+        selectedDate = calendar.clampedDay(clamped)
+        yearPickerSelection = calendar.component(.year, from: clamped)
+    }
+
+    var yearSelector: some View {
+        let currentYear = calendar.component(.year, from: Date())
+        let range = (currentYear - 100)...(currentYear + 50)
+        let rowHeight: CGFloat = 32
+        let visibleRows: CGFloat = 7.5
+
+        return Picker("Year", selection: $yearPickerSelection) {
+            ForEach(range, id: \.self) { year in
+                Text(yearDescription(year))
+                    .font(.headline)
+                    .frame(maxWidth: .infinity)
+                    .tag(year)
+            }
+        }
+        .pickerStyle(.wheel)
+        .clipped()
+        .padding(.horizontal, 8)
+    }
+
+    var monthGridForSelection: some View {
+        let months = calendar.monthSymbols.indices.map { $0 + 1 }
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 3)
+        return LazyVGrid(columns: columns, spacing: 12) {
+            ForEach(months, id: \.self) { month in
+                Button {
+                    jumpToYear(yearPickerSelection, month: month)
+                    isPresentingYearPicker = false
+                } label: {
+                    Text(shortMonthName(for: month))
+                        .font(.headline)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(
+                            Capsule()
+                                .fill(monthButtonBackground(month: month))
+
+                        )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal)
+    }
+
+    func shortMonthName(for month: Int) -> String {
+        let symbols = calendar.shortMonthSymbols
+        guard month - 1 < symbols.count else { return "\(month)" }
+        return symbols[month - 1]
+    }
+
+    func monthButtonBackground(month: Int) -> Color {
+        let currentMonth = calendar.component(.month, from: monthAnchor)
+        let currentYear = calendar.component(.year, from: monthAnchor)
+        if currentYear == yearPickerSelection && currentMonth == month {
+            return Color.accentColor.opacity(0.2)
+        }
+        return Color(.secondarySystemBackground)
+    }
+
+    func jumpToYear(_ year: Int, month: Int) {
+        var components = DateComponents()
+        components.year = year
+        components.month = month
+        components.day = 1
+        if let date = calendar.date(from: components) {
+            jumpToMonth(date)
+        }
+    }
+
+    func yearDescription(_ year: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .none
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        return formatter.string(from: NSNumber(value: year)) ?? "\(year)"
     }
 }
 
@@ -190,7 +319,7 @@ struct MonthMetadata {
 private extension Calendar {
     var minimumAllowedDate: Date {
         var components = DateComponents()
-        components.year = 2000
+        components.year = 1900
         components.month = 1
         components.day = 1
         return self.date(from: components) ?? Date(timeIntervalSince1970: 0)
@@ -198,7 +327,7 @@ private extension Calendar {
 
     var maximumAllowedDate: Date {
         var components = DateComponents()
-        components.year = 2030
+        components.year = 2099
         components.month = 12
         components.day = 31
         return self.date(from: components) ?? Date.distantFuture

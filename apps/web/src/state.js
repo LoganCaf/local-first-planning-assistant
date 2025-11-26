@@ -2,7 +2,11 @@ const now = new Date();
 
 export const state = {
   tasks: [],
+  taskSegments: [],
   routines: [],
+  assignments: [],
+  assignmentSegments: [],
+  assignmentSync: null,
   schedule: [],
   unscheduled: [],
   insights: null,
@@ -29,5 +33,11 @@ export function subscribe(callback) {
 
 export function setState(patch) {
   Object.assign(state, patch);
-  listeners.forEach((listener) => listener(state));
+  listeners.forEach((listener) => {
+    try {
+      listener(state);
+    } catch (error) {
+      console.error('Subscriber error', error);
+    }
+  });
 }

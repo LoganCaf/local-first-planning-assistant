@@ -7,6 +7,7 @@ final class AppData: ObservableObject {
     @Published var todos: [TaskItem] = []
     @Published var assignments: [SchoolAssignment] = []
     @Published var routines: [RoutineItem] = []
+    @Published var taskSegments: [TaskSegment] = []
     @Published var assignmentsLastUpdated: Date?
     @Published private(set) var lastAssignmentSync: AssignmentSyncSource?
 
@@ -16,6 +17,7 @@ final class AppData: ObservableObject {
     private let assignmentsURL: URL
     private let assignmentsICSURL: URL
     private let routinesURL: URL
+    private let taskSegmentsURL: URL
 
     init() {
         encoder = JSONEncoder()
@@ -36,11 +38,13 @@ final class AppData: ObservableObject {
         todosURL = appDirectory.appendingPathComponent("todos.json")
         assignmentsURL = appDirectory.appendingPathComponent("assignments.json")
         assignmentsICSURL = appDirectory.appendingPathComponent("assignments.ics")
-    routinesURL = appDirectory.appendingPathComponent("routines.json")
+        routinesURL = appDirectory.appendingPathComponent("routines.json")
+        taskSegmentsURL = appDirectory.appendingPathComponent("taskSegments.json")
 
         loadTodos()
         loadAssignments()
         loadRoutines()
+        loadTaskSegments()
     }
 
     // MARK: - Routines
@@ -54,6 +58,12 @@ final class AppData: ObservableObject {
         persistRoutines()
     }
 
+    func removeRoutine(id: UUID) {
+        guard let index = routines.firstIndex(where: { $0.id == id }) else { return }
+        routines.remove(at: index)
+        persistRoutines()
+    }
+
     func toggleRoutineEnabled(id: UUID) {
         guard let index = routines.firstIndex(where: { $0.id == id }) else { return }
         routines[index].isEnabled.toggle()
@@ -64,6 +74,102 @@ final class AppData: ObservableObject {
         guard let index = routines.firstIndex(where: { $0.id == routine.id }) else { return }
         routines[index] = routine
         persistRoutines()
+    }
+
+    // MARK: - Task Segments
+    func segments(for parentType: TaskSegmentParent, parentIdentifier: String) -> [TaskSegment] {
+        taskSegments
+            .filter { $0.parentType == parentType && $0.parentIdentifier == parentIdentifier }
+            .sorted { lhs, rhs in
+                if lhs.dueDate == rhs.dueDate {
+                    return lhs.title < rhs.title
+                }
+                return lhs.dueDate < rhs.dueDate
+            }
+    }
+
+    func add(segment: TaskSegment) {
+        taskSegments.append(segment)
+        persistTaskSegments()
+    }
+
+    func update(segment: TaskSegment) {
+        guard let index = taskSegments.firstIndex(where: { $0.id == segment.id }) else { return }
+        taskSegments[index] = segment
+        persistTaskSegments()
+    }
+
+    func removeSegment(id: UUID) {
+        taskSegments.removeAll { $0.id == id }
+        persistTaskSegments()
+    }
+
+    func removeSegments(for parentType: TaskSegmentParent, parentIdentifier: String) {
+        taskSegments.removeAll { $0.parentType == parentType && $0.parentIdentifier == parentIdentifier }
+        persistTaskSegments()
+    }
+
+    func toggleSegmentCompletion(id: UUID) {
+        guard let index = taskSegments.firstIndex(where: { $0.id == id }) else { return }
+        taskSegments[index].isCompleted.toggle()
+        if taskSegments[index].isCompleted {
+            taskSegments[index].activeTimerStart = nil
+            if taskSegments[index].actualStartTime == nil {
+                taskSegments[index].actualStartTime = Date()
+            }
+            taskSegments[index].actualEndTime = Date()
+        }
+        persistTaskSegments()
+    }
+
+    func startSegmentProgress(id: UUID) {
+        guard let index = taskSegments.firstIndex(where: { $0.id == id }) else { return }
+        var segment = taskSegments[index]
+        let now = Date()
+        if segment.actualStartTime == nil {
+            segment.actualStartTime = now
+        }
+        if segment.actualDurationSeconds == nil {
+            segment.actualDurationSeconds = 0
+        }
+        segment.actualEndTime = nil
+        segment.activeTimerStart = now
+        segment.isCompleted = false
+        taskSegments[index] = segment
+        persistTaskSegments()
+    }
+
+    func pauseSegmentProgress(id: UUID) {
+        guard let index = taskSegments.firstIndex(where: { $0.id == id }) else { return }
+        var segment = taskSegments[index]
+        guard let segmentStart = segment.activeTimerStart else { return }
+        let now = Date()
+        let elapsed = max(0, now.timeIntervalSince(segmentStart))
+        let accumulated = segment.actualDurationSeconds ?? 0
+        segment.actualDurationSeconds = accumulated + elapsed
+        segment.activeTimerStart = nil
+        segment.actualEndTime = nil
+        taskSegments[index] = segment
+        persistTaskSegments()
+    }
+
+    func completeSegmentProgress(id: UUID) {
+        guard let index = taskSegments.firstIndex(where: { $0.id == id }) else { return }
+        var segment = taskSegments[index]
+        let now = Date()
+        if segment.actualStartTime == nil {
+            segment.actualStartTime = now
+        }
+        var total = segment.actualDurationSeconds ?? 0
+        if let start = segment.activeTimerStart {
+            total += max(0, now.timeIntervalSince(start))
+        }
+        segment.activeTimerStart = nil
+        segment.actualEndTime = now
+        segment.actualDurationSeconds = total
+        segment.isCompleted = true
+        taskSegments[index] = segment
+        persistTaskSegments()
     }
 
     func add(task: TaskItem) {
@@ -80,9 +186,15 @@ final class AppData: ObservableObject {
     }
 
     func removeTasks(at offsets: IndexSet) {
+        let removedIDs = offsets.compactMap { index in
+            todos.indices.contains(index) ? todos[index].id : nil
+        }
         todos.remove(atOffsets: offsets)
         sortTasks()
         persistTodos()
+        for id in removedIDs {
+            removeSegments(for: .todo, parentIdentifier: id.uuidString)
+        }
     }
 
     func toggleTaskCompletion(id: UUID) {
@@ -99,8 +211,26 @@ final class AppData: ObservableObject {
         if task.actualStartTime == nil {
             task.actualStartTime = now
         }
+        if task.actualDurationSeconds == nil {
+            task.actualDurationSeconds = 0
+        }
         task.actualEndTime = nil
-        task.actualDurationSeconds = nil
+        task.activeTimerStart = now
+        task.isCompleted = false
+        todos[index] = task
+        persistTodos()
+    }
+
+    func pauseTaskProgress(id: UUID) {
+        guard let index = todos.firstIndex(where: { $0.id == id }) else { return }
+        var task = todos[index]
+        guard let segmentStart = task.activeTimerStart else { return }
+        let now = Date()
+        let elapsed = max(0, now.timeIntervalSince(segmentStart))
+        let accumulated = task.actualDurationSeconds ?? 0
+        task.actualDurationSeconds = accumulated + elapsed
+        task.activeTimerStart = nil
+        task.actualEndTime = nil
         todos[index] = task
         persistTodos()
     }
@@ -112,8 +242,13 @@ final class AppData: ObservableObject {
         if task.actualStartTime == nil {
             task.actualStartTime = now
         }
+        var total = task.actualDurationSeconds ?? 0
+        if let segmentStart = task.activeTimerStart {
+            total += max(0, now.timeIntervalSince(segmentStart))
+        }
+        task.actualDurationSeconds = total
+        task.activeTimerStart = nil
         task.actualEndTime = now
-        task.actualDurationSeconds = max(0, now.timeIntervalSince(task.actualStartTime ?? now))
         task.isCompleted = true
         todos[index] = task
         sortTasks()
@@ -140,8 +275,26 @@ final class AppData: ObservableObject {
         if assignment.actualStartTime == nil {
             assignment.actualStartTime = now
         }
+        if assignment.actualDurationSeconds == nil {
+            assignment.actualDurationSeconds = 0
+        }
         assignment.actualEndTime = nil
-        assignment.actualDurationSeconds = nil
+        assignment.activeTimerStart = now
+        assignment.isCompleted = false
+        assignments[index] = assignment
+        persistAssignments()
+    }
+
+    func pauseAssignmentProgress(id: String) {
+        guard let index = assignments.firstIndex(where: { $0.id == id }) else { return }
+        var assignment = assignments[index]
+        guard let segmentStart = assignment.activeTimerStart else { return }
+        let now = Date()
+        let elapsed = max(0, now.timeIntervalSince(segmentStart))
+        let accumulated = assignment.actualDurationSeconds ?? 0
+        assignment.actualDurationSeconds = accumulated + elapsed
+        assignment.activeTimerStart = nil
+        assignment.actualEndTime = nil
         assignments[index] = assignment
         persistAssignments()
     }
@@ -153,8 +306,13 @@ final class AppData: ObservableObject {
         if assignment.actualStartTime == nil {
             assignment.actualStartTime = now
         }
+        var total = assignment.actualDurationSeconds ?? 0
+        if let segmentStart = assignment.activeTimerStart {
+            total += max(0, now.timeIntervalSince(segmentStart))
+        }
+        assignment.activeTimerStart = nil
         assignment.actualEndTime = now
-        assignment.actualDurationSeconds = max(0, now.timeIntervalSince(assignment.actualStartTime ?? now))
+        assignment.actualDurationSeconds = total
         assignment.isCompleted = true
         assignments[index] = assignment
         sortAssignments()
@@ -193,6 +351,15 @@ final class AppData: ObservableObject {
             lastAssignmentSync = syncSource
         }
         persistAssignments()
+
+        let validAssignmentIDs = Set(assignments.map(\.id))
+        let originalSegmentCount = taskSegments.count
+        taskSegments.removeAll { segment in
+            segment.parentType == .assignment && !validAssignmentIDs.contains(segment.parentIdentifier)
+        }
+        if taskSegments.count != originalSegmentCount {
+            persistTaskSegments()
+        }
     }
 
     func loadStoredAssignmentsICSData() -> Data? {
@@ -206,7 +373,16 @@ final class AppData: ObservableObject {
     private func sortTasks() {
         todos.sort {
             if $0.isCompleted == $1.isCompleted {
-                return $0.dueDate < $1.dueDate
+                switch ($0.hasDeadline, $1.hasDeadline) {
+                case (true, true):
+                    return $0.dueDate < $1.dueDate
+                case (true, false):
+                    return true
+                case (false, true):
+                    return false
+                case (false, false):
+                    return $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending
+                }
             }
             return !$0.isCompleted && $1.isCompleted
         }
@@ -246,6 +422,13 @@ final class AppData: ObservableObject {
         }
     }
 
+    private func loadTaskSegments() {
+        guard let data = try? Data(contentsOf: taskSegmentsURL) else { return }
+        if let decoded = try? decoder.decode([TaskSegment].self, from: data) {
+            taskSegments = decoded
+        }
+    }
+
     private func persistTodos() {
         guard let data = try? encoder.encode(todos) else { return }
         try? data.write(to: todosURL, options: [.atomic])
@@ -269,6 +452,21 @@ final class AppData: ObservableObject {
         } catch {
             #if DEBUG
             print("Failed to persist routines: \(error)")
+            #endif
+        }
+    }
+
+    private func persistTaskSegments() {
+        let localEncoder = JSONEncoder()
+        localEncoder.outputFormatting = encoder.outputFormatting
+        localEncoder.dateEncodingStrategy = encoder.dateEncodingStrategy
+
+        do {
+            let data = try localEncoder.encode(taskSegments)
+            try data.write(to: taskSegmentsURL, options: [.atomic])
+        } catch {
+            #if DEBUG
+            print("Failed to persist task segments: \(error)")
             #endif
         }
     }

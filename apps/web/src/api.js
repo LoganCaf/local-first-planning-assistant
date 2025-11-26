@@ -22,6 +22,31 @@ export const api = {
     if (!response || !response.ok) return null;
     return response.json();
   },
+  listTaskSegments(taskId) {
+    const query = taskId ? `?taskId=${encodeURIComponent(taskId)}` : '';
+    return request(`/api/task-segments${query}`);
+  },
+  createTaskSegment(payload) {
+    return request('/api/task-segments', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+  updateTaskSegment(payload) {
+    return request('/api/task-segments', {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+  },
+  deleteTaskSegment(id) {
+    return request(`/api/task-segments?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+  updateTaskSegmentTimer(id, action) {
+    return request('/api/task-segment-timer', {
+      method: 'POST',
+      body: JSON.stringify({ id, action })
+    });
+  },
   listTasks() {
     return request('/api/tasks');
   },
@@ -31,8 +56,20 @@ export const api = {
       body: JSON.stringify(payload)
     });
   },
+  updateTask(payload) {
+    return request('/api/tasks', {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+  },
   deleteTask(id) {
     return request(`/api/tasks?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+  updateTaskTimer(id, action) {
+    return request('/api/tasks/timer', {
+      method: 'POST',
+      body: JSON.stringify({ id, action })
+    });
   },
   listRoutines() {
     return request('/api/routines');
@@ -40,6 +77,12 @@ export const api = {
   createRoutine(payload) {
     return request('/api/routines', {
       method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+  updateRoutine(payload) {
+    return request('/api/routines', {
+      method: 'PUT',
       body: JSON.stringify(payload)
     });
   },
@@ -60,6 +103,55 @@ export const api = {
     return request('/api/assistant', {
       method: 'POST',
       body: JSON.stringify({ message, history })
+    });
+  },
+  listAssignments() {
+    return request('/api/assignments');
+  },
+  importAssignments(icsText, sourceName = 'Canvas ICS', sourceURL) {
+    return request('/api/assignments/import', {
+      method: 'POST',
+      body: JSON.stringify({ icsText, sourceName, sourceURL })
+    });
+  },
+  syncAssignments() {
+    return request('/api/assignments/sync', { method: 'POST' });
+  },
+  updateAssignment(payload) {
+    return request('/api/assignments', {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+  },
+  listAssignmentSegments(assignmentId) {
+    const query = assignmentId ? `?assignmentId=${encodeURIComponent(assignmentId)}` : '';
+    return request(`/api/assignment-segments${query}`);
+  },
+  createAssignmentSegment(payload) {
+    return request('/api/assignment-segments', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
+  },
+  updateAssignmentSegment(payload) {
+    return request('/api/assignment-segments', {
+      method: 'PUT',
+      body: JSON.stringify(payload)
+    });
+  },
+  deleteAssignmentSegment(id) {
+    return request(`/api/assignment-segments?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+  },
+  updateAssignmentTimer(id, action) {
+    return request('/api/assignment-timer', {
+      method: 'POST',
+      body: JSON.stringify({ id, action })
+    });
+  },
+  updateAssignmentSegmentTimer(id, action) {
+    return request('/api/assignment-segment-timer', {
+      method: 'POST',
+      body: JSON.stringify({ id, action })
     });
   }
 };

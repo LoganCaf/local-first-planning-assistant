@@ -1,4 +1,13 @@
-export { createTask, createRoutine, createGoal, normalizeTaskInput } from './models.js';
+export {
+  createTask,
+  createRoutine,
+  createGoal,
+  createAssignment,
+  createAssignmentSegment,
+  createTaskSegment,
+  normalizeTaskInput,
+  normalizeDate
+} from './models.js';
 export {
   generateSchedule,
   buildAvailabilityGrid,
@@ -9,3 +18,4 @@ export {
 export { computeAnalyticsSummary, buildWeeklyReport } from './analytics.js';
 export { evaluateReminders, escalateSkippedTasks } from './notifications.js';
 export { InMemoryDataStore } from './store.js';
+export { parseICSAssignments } from './ics.js';

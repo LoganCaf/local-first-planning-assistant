@@ -15,6 +15,7 @@ struct SchoolAssignment: Identifiable, Equatable, Codable {
     var actualStartTime: Date?
     var actualEndTime: Date?
     var actualDurationSeconds: Double?
+    var activeTimerStart: Date?
 
     private enum CodingKeys: String, CodingKey {
         case id
@@ -31,6 +32,7 @@ struct SchoolAssignment: Identifiable, Equatable, Codable {
         case actualStartTime
         case actualEndTime
         case actualDurationSeconds
+        case activeTimerStart
     }
 
     init(
@@ -47,7 +49,8 @@ struct SchoolAssignment: Identifiable, Equatable, Codable {
         estimatedDurationMinutes: Int? = nil,
         actualStartTime: Date? = nil,
         actualEndTime: Date? = nil,
-        actualDurationSeconds: Double? = nil
+        actualDurationSeconds: Double? = nil,
+        activeTimerStart: Date? = nil
     ) {
         self.id = id
         self.title = title
@@ -63,6 +66,7 @@ struct SchoolAssignment: Identifiable, Equatable, Codable {
         self.actualStartTime = actualStartTime
         self.actualEndTime = actualEndTime
         self.actualDurationSeconds = actualDurationSeconds
+        self.activeTimerStart = activeTimerStart
     }
 
     init(from decoder: Decoder) throws {
@@ -81,6 +85,7 @@ struct SchoolAssignment: Identifiable, Equatable, Codable {
         actualStartTime = try container.decodeIfPresent(Date.self, forKey: .actualStartTime)
         actualEndTime = try container.decodeIfPresent(Date.self, forKey: .actualEndTime)
         actualDurationSeconds = try container.decodeIfPresent(Double.self, forKey: .actualDurationSeconds)
+        activeTimerStart = try container.decodeIfPresent(Date.self, forKey: .activeTimerStart)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -99,6 +104,7 @@ struct SchoolAssignment: Identifiable, Equatable, Codable {
         try container.encodeIfPresent(actualStartTime, forKey: .actualStartTime)
         try container.encodeIfPresent(actualEndTime, forKey: .actualEndTime)
         try container.encodeIfPresent(actualDurationSeconds, forKey: .actualDurationSeconds)
+        try container.encodeIfPresent(activeTimerStart, forKey: .activeTimerStart)
     }
 }
 

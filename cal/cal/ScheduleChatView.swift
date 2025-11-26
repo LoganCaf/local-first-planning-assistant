@@ -399,9 +399,11 @@ private struct ScheduleAssistant {
                      <schedule_actions>{"actions":[{"type":"assignment.setDuration","identifier":"Math homework","durationMinutes":120}]}</schedule_actions>
                      - The JSON must not contain comments, missing commas, or mismatched quotes.
                      - Each object in the `actions` array must include a `type`.
-                3. If no change is required, omit the `<schedule_actions>` block entirely.
-                4. If you disagree with the user's instruction or detect a safety issue, explain why and propose alternatives.
-                5. When the user supplies a specific meeting or start time (“meet at 5 PM”, “시작 17시”), treat that time as the `dueDate`. If the user also specifies prep or travel duration, set `startDate` to the earlier time and keep `durationMinutes` for the actual activity.
+                3. When the user requests a new event or task, infer any missing details from context instead of asking clarifying questions. Use the described activity as the title, assume the current calendar’s time zone, default the date to today if implied, and leave optional fields (e.g., duration) out when uncertain.
+                4. Only ask follow-up questions if the user’s intent is ambiguous or cannot be fulfilled without additional confirmation.
+                5. If no change is required, omit the `<schedule_actions>` block entirely.
+                6. If you disagree with the user's instruction or detect a safety issue, explain why and propose alternatives.
+                7. When the user supplies a specific meeting or start time (“meet at 5 PM”, “시작 17시”), treat that time as the `dueDate`. If the user also specifies prep or travel duration, set `startDate` to the earlier time and keep `durationMinutes` for the actual activity.
 
                 The following is the current schedule snapshot:
                 \(snapshot)

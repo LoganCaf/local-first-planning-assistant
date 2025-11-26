@@ -1,6 +1,19 @@
 import SwiftUI
 
 struct ContentView: View {
+    @AppStorage("appearanceMode") private var appearanceModeRaw: String = AppearanceMode.system.rawValue
+
+    private var preferredScheme: ColorScheme? {
+        switch AppearanceMode(rawValue: appearanceModeRaw) ?? .system {
+        case .system:
+            return nil
+        case .light:
+            return .light
+        case .dark:
+            return .dark
+        }
+    }
+
     var body: some View {
         TabView {
             NavigationStack {
@@ -33,6 +46,7 @@ struct ContentView: View {
                 Label("Settings", systemImage: "gearshape")
             }
         }
+        .preferredColorScheme(preferredScheme)
     }
 }
 

@@ -64,8 +64,9 @@ struct CalendarDayCell: View {
             if let count = eventsCount, count > 0, indicatorStyle == "bottom" {
                 Circle()
                     .fill(indicatorColor(for: count))
-                    .frame(width: 10, height: 10)
+                    .frame(width: 8, height: 10)
                     .padding(.bottom, 4)
+                    .offset(x:0.5)
             }
         }
         .opacity(day.isWithinDisplayedMonth ? 1.0 : 0.4)

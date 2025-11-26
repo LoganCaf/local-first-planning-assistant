@@ -5,9 +5,12 @@ import {
   renderAgenda,
   renderInsightCards,
   renderTasks,
+  renderActiveTasks,
   updateTaskFilters,
   renderRoutines,
   renderAssistantHistory,
+  renderAssignments,
+  renderCountdowns,
   updateActiveTab,
   formatSelectedHeading
 } from './ui.js';
@@ -28,7 +31,13 @@ const elements = {
   insightCards: document.getElementById('insight-cards'),
   taskForm: document.getElementById('task-form'),
   taskList: document.getElementById('task-list'),
+  taskActiveList: document.getElementById('task-active-list'),
   taskFilters: document.getElementById('task-filters'),
+  countdownList: document.getElementById('countdown-list'),
+  assignmentFile: document.getElementById('assignment-file'),
+  assignmentImport: document.getElementById('assignment-import'),
+  assignmentImportStatus: document.getElementById('assignment-import-status'),
+  assignmentList: document.getElementById('assignment-list'),
   routineForm: document.getElementById('routine-form'),
   routineList: document.getElementById('routine-list'),
   assistantLog: document.getElementById('assistant-log'),
@@ -40,6 +49,11 @@ const elements = {
 const views = Array.from(document.querySelectorAll('[data-view]'));
 const tabButtons = Array.from(document.querySelectorAll('[data-tab]'));
 
+function switchTab(tab) {
+  setState({ activeTab: tab });
+  updateActiveTab(tab, views, tabButtons);
+}
+
 subscribe((snapshot) => {
   updateConnectionStatus(snapshot.connection);
   renderCalendar({
@@ -48,7 +62,9 @@ subscribe((snapshot) => {
     gridEl: elements.calendarGrid,
     calendarMonth: snapshot.calendarMonth,
     selectedDate: snapshot.selectedDate,
-    schedule: snapshot.schedule
+    schedule: snapshot.schedule,
+    tasks: snapshot.tasks,
+    assignments: snapshot.assignments
   });
   if (elements.agendaTitle) {
     elements.agendaTitle.textContent = formatSelectedHeading(snapshot.selectedDate);
@@ -57,11 +73,21 @@ subscribe((snapshot) => {
     listEl: elements.agendaList,
     emptyEl: elements.agendaEmpty,
     schedule: snapshot.schedule,
+    tasks: snapshot.tasks,
+    assignments: snapshot.assignments,
+    selectedDate: snapshot.selectedDate
+  });
+  renderCountdowns({
+    listEl: elements.countdownList,
+    tasks: snapshot.tasks,
+    assignments: snapshot.assignments,
     selectedDate: snapshot.selectedDate
   });
   renderInsightCards(elements.insightCards, snapshot.insights);
   updateTaskFilters(elements.taskFilters, snapshot.taskFilter);
-  renderTasks(elements.taskList, snapshot.tasks, snapshot.taskFilter);
+  renderTasks(elements.taskList, snapshot.tasks, snapshot.taskSegments, snapshot.taskFilter);
+  renderActiveTasks(elements.taskActiveList, snapshot.tasks);
+  renderAssignments(elements.assignmentList, snapshot.assignments, snapshot.assignmentSegments);
   renderRoutines(elements.routineList, snapshot.routines);
   renderAssistantHistory(elements.assistantLog, snapshot.assistantHistory);
   updateActiveTab(snapshot.activeTab, views, tabButtons);
@@ -73,6 +99,9 @@ registerEvents();
 async function bootstrap() {
   await refreshConnection();
   await loadTasks();
+  await loadTaskSegments();
+  await loadAssignments();
+  await loadAssignmentSegments();
   await loadRoutines();
   await refreshSchedule();
   await refreshInsights();
@@ -83,9 +112,21 @@ function registerEvents() {
     elements.tabBar.addEventListener('click', (event) => {
       const target = event.target.closest('[data-tab]');
       if (!target) return;
-      setState({ activeTab: target.dataset.tab });
+      switchTab(target.dataset.tab);
     });
   }
+
+  const deadlineCheckbox = document.getElementById('task-has-deadline');
+  const dueInput = document.getElementById('task-due');
+  if (deadlineCheckbox && dueInput) {
+    const syncDeadlineState = () => {
+      dueInput.disabled = !deadlineCheckbox.checked;
+    };
+    deadlineCheckbox.addEventListener('change', syncDeadlineState);
+    syncDeadlineState();
+  }
+  // ensure initial active tab styling even if a render fails elsewhere
+  switchTab(state.activeTab);
 
   if (elements.taskFilters) {
     elements.taskFilters.addEventListener('click', (event) => {
@@ -155,10 +196,16 @@ function registerEvents() {
         priority: Number(data.get('priority') || 3),
         tags: category === 'all' ? [] : [category]
       };
+      const start = (data.get('start') || '').toString();
+      if (start) payload.start = new Date(start);
+      const hasDeadline = data.get('hasDeadline') !== null;
+      payload.hasDeadline = hasDeadline;
       const due = (data.get('due') || '').toString();
-      if (due) payload.due = new Date(`${due}T00:00:00`);
+      if (hasDeadline && due) payload.due = new Date(due);
       await api.createTask(payload);
       elements.taskForm.reset();
+      const deadlineCheckbox = document.getElementById('task-has-deadline');
+      if (deadlineCheckbox) deadlineCheckbox.checked = true;
       await loadTasks();
       await refreshSchedule();
       await refreshInsights();
@@ -167,12 +214,147 @@ function registerEvents() {
 
   if (elements.taskList) {
     elements.taskList.addEventListener('click', async (event) => {
-      const button = event.target.closest('[data-task-id]');
-      if (!button) return;
-      await api.deleteTask(button.dataset.taskId);
-      await loadTasks();
-      await refreshSchedule();
-      await refreshInsights();
+      const deleteButton = event.target.closest('[data-task-id]');
+      const toggleButton = event.target.closest('[data-action="toggle-complete"]');
+      const startButton = event.target.closest('[data-action="start-task"]');
+      const pauseButton = event.target.closest('[data-action="pause-task"]');
+      const doneButton = event.target.closest('[data-action="finish-task"]');
+      const editButton = event.target.closest('[data-action="edit-task"]');
+      const startSeg = event.target.closest('[data-action="start-task-segment"]');
+      const pauseSeg = event.target.closest('[data-action="pause-task-segment"]');
+      const finishSeg = event.target.closest('[data-action="finish-task-segment"]');
+      const deleteSeg = event.target.closest('[data-action="delete-task-segment"]');
+      const toggleSeg = event.target.closest('[data-action="toggle-task-segment"]');
+
+      if (toggleButton) {
+        await toggleTaskCompletion(toggleButton.dataset.taskId);
+        return;
+      }
+
+      if (startButton) {
+        await api.updateTaskTimer(startButton.dataset.taskId, 'start');
+        await loadTasks();
+        return;
+      }
+
+      if (pauseButton) {
+        await api.updateTaskTimer(pauseButton.dataset.taskId, 'pause');
+        await loadTasks();
+        return;
+      }
+
+      if (doneButton) {
+        await api.updateTaskTimer(doneButton.dataset.taskId, 'complete');
+        await loadTasks();
+        await refreshSchedule();
+        await refreshInsights();
+        return;
+      }
+
+      if (editButton) {
+        await promptEditTask(editButton.dataset.taskId);
+        return;
+      }
+
+      if (startSeg) {
+        await api.updateTaskSegmentTimer(startSeg.dataset.segmentId, 'start');
+        await loadTaskSegments();
+        return;
+      }
+
+      if (pauseSeg) {
+        await api.updateTaskSegmentTimer(pauseSeg.dataset.segmentId, 'pause');
+        await loadTaskSegments();
+        return;
+      }
+
+      if (finishSeg) {
+        await api.updateTaskSegmentTimer(finishSeg.dataset.segmentId, 'complete');
+        await loadTaskSegments();
+        return;
+      }
+
+      if (toggleSeg) {
+        await api.updateTaskSegment({ ...state.taskSegments.find((s) => s.id === toggleSeg.dataset.segmentId), isCompleted: toggleSeg.checked });
+        await loadTaskSegments();
+        return;
+      }
+
+      if (deleteSeg) {
+        await api.deleteTaskSegment(deleteSeg.dataset.segmentId);
+        await loadTaskSegments();
+        return;
+      }
+
+      if (deleteButton) {
+        await api.deleteTask(deleteButton.dataset.taskId);
+        await loadTasks();
+        await loadTaskSegments();
+        await refreshSchedule();
+        await refreshInsights();
+      }
+    });
+
+    elements.taskList.addEventListener('change', async (event) => {
+      const editForm = event.target.closest('.task-edit-form');
+      if (editForm && event.target.name === 'hasDeadline') {
+        const timeRow = editForm.querySelector('[data-time-row]');
+        if (timeRow) {
+          timeRow.style.display = event.target.checked ? 'grid' : 'none';
+        }
+      }
+    });
+
+    elements.taskList.addEventListener('submit', async (event) => {
+      const editForm = event.target.closest('.task-edit-form');
+      if (editForm) {
+        event.preventDefault();
+        const taskId = editForm.dataset.taskId;
+        const formData = new FormData(editForm);
+        const current = state.tasks.find((t) => t.id === taskId);
+        if (!current) return;
+        const updated = { ...current };
+        updated.title = formData.get('title')?.toString().trim() || updated.title;
+        updated.description = formData.get('description')?.toString() || '';
+        const dur = Number(formData.get('duration') || updated.estimatedDuration || 0);
+        updated.estimatedDuration = Number.isNaN(dur) ? 0 : dur;
+        const pri = Number(formData.get('priority') || updated.priority || 3);
+        updated.priority = Number.isNaN(pri) ? updated.priority : pri;
+        updated.hasDeadline = formData.get('hasDeadline') === 'on';
+        const due = formData.get('due')?.toString();
+        if (updated.hasDeadline && due) {
+          updated.due = new Date(due);
+        } else if (!updated.hasDeadline) {
+          updated.due = null;
+        }
+        const start = formData.get('start')?.toString();
+        if (start) {
+          updated.start = new Date(start);
+        }
+        await api.updateTask(updated);
+        await loadTasks();
+        return;
+      }
+
+      const segmentForm = event.target.closest('.segment-form');
+      if (segmentForm && segmentForm.dataset.taskId) {
+        event.preventDefault();
+        const taskId = segmentForm.dataset.taskId;
+        const formData = new FormData(segmentForm);
+        const title = (formData.get('title') || '').toString().trim();
+        if (!title) return;
+        const due = formData.get('due');
+        const minutes = Number(formData.get('minutes') || 0);
+        await api.createTaskSegment({
+          taskId,
+          title,
+          due: due ? new Date(`${due}T00:00:00`) : null,
+          estimatedDuration: minutes > 0 ? minutes : 0
+        });
+        segmentForm.reset();
+        await loadTaskSegments();
+        return;
+      }
     });
   }
 
@@ -181,13 +363,16 @@ function registerEvents() {
       event.preventDefault();
       const data = new FormData(elements.routineForm);
       const name = (data.get('name') || '').toString().trim() || 'Routine';
+      const icon = (data.get('icon') || '🔁').toString();
+      const color = (data.get('color') || '#60a5fa').toString();
+      const active = data.get('active') !== null;
       const startTime = (data.get('start') || '').toString();
       const endTime = (data.get('end') || '').toString();
       const days = data.getAll('day').map((value) => Number(value));
       const targetDays = days.length ? days : [new Date().getDay()];
       if (!startTime || !endTime) return;
       const blocks = targetDays.map((day) => buildRoutineBlock(day, startTime, endTime, name));
-      await api.createRoutine({ name, blocks, active: true });
+      await api.createRoutine({ name, blocks, active, icon, color });
       elements.routineForm.reset();
       await loadRoutines();
       await refreshSchedule();
@@ -197,10 +382,212 @@ function registerEvents() {
   if (elements.routineList) {
     elements.routineList.addEventListener('click', async (event) => {
       const button = event.target.closest('[data-routine-id]');
-      if (!button) return;
-      await api.deleteRoutine(button.dataset.routineId);
-      await loadRoutines();
-      await refreshSchedule();
+      const toggle = event.target.closest('[data-action="toggle-routine"]');
+      if (toggle) {
+        const id = toggle.dataset.routineId;
+        const routine = state.routines.find((r) => r.id === id);
+        if (!routine) return;
+        await api.updateRoutine({ ...routine, active: toggle.checked });
+        await loadRoutines();
+        await refreshSchedule();
+        return;
+      }
+      if (button) {
+        await api.deleteRoutine(button.dataset.routineId);
+        await loadRoutines();
+        await refreshSchedule();
+      }
+    });
+  }
+
+  if (elements.assignmentImport) {
+    elements.assignmentImport.addEventListener('click', async () => {
+      const file = elements.assignmentFile?.files?.[0];
+      if (!file) {
+        setImportStatus('Select an ICS file first.');
+        return;
+      }
+      setImportStatus('Importing...');
+      const text = await file.text();
+      try {
+        await api.importAssignments(text, file.name);
+        await loadAssignments();
+        await loadAssignmentSegments();
+        setImportStatus('Imported assignments from ICS.');
+      } catch (error) {
+        console.error(error);
+        setImportStatus('Failed to import ICS file.');
+      }
+    });
+  }
+
+  const assignmentImportURL = document.getElementById('assignment-import-url');
+  const assignmentURLInput = document.getElementById('assignment-url');
+  const assignmentSyncButton = document.getElementById('assignment-sync');
+
+  if (assignmentImportURL && assignmentURLInput) {
+    assignmentImportURL.addEventListener('click', async () => {
+      const url = assignmentURLInput.value.trim();
+      if (!url) {
+        setImportStatus('Enter an ICS URL first.');
+        return;
+      }
+      setImportStatus('Fetching ICS...');
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error('Failed to fetch ICS');
+        const text = await response.text();
+        await api.importAssignments(text, url, url);
+        await loadAssignments();
+        await loadAssignmentSegments();
+        setImportStatus('Imported assignments from URL.');
+      } catch (error) {
+        console.error(error);
+        setImportStatus('Failed to import from URL.');
+      }
+    });
+  }
+
+  if (assignmentSyncButton) {
+    assignmentSyncButton.addEventListener('click', async () => {
+      setImportStatus('Syncing...');
+      try {
+        await api.syncAssignments();
+        await loadAssignments();
+        await loadAssignmentSegments();
+        setImportStatus('Synced assignments from stored URL.');
+      } catch (error) {
+        console.error(error);
+        setImportStatus('Failed to sync assignments.');
+      }
+    });
+  }
+
+  if (elements.assignmentList) {
+    elements.assignmentList.addEventListener('click', async (event) => {
+      const toggle = event.target.closest('[data-action="toggle-assignment"]');
+      if (toggle) {
+        const id = toggle.dataset.assignmentId;
+        await toggleAssignmentCompletion(id);
+        return;
+      }
+      const startAssign = event.target.closest('[data-action="start-assignment"]');
+      if (startAssign) {
+        await api.updateAssignmentTimer(startAssign.dataset.assignmentId, 'start');
+        await loadAssignments();
+        return;
+      }
+      const pauseAssign = event.target.closest('[data-action="pause-assignment"]');
+      if (pauseAssign) {
+        await api.updateAssignmentTimer(pauseAssign.dataset.assignmentId, 'pause');
+        await loadAssignments();
+        return;
+      }
+      const finishAssign = event.target.closest('[data-action="finish-assignment"]');
+      if (finishAssign) {
+        await api.updateAssignmentTimer(finishAssign.dataset.assignmentId, 'complete');
+        await loadAssignments();
+        return;
+      }
+      const toggleSegment = event.target.closest('[data-action="toggle-segment"]');
+      if (toggleSegment) {
+        const id = toggleSegment.dataset.segmentId;
+        await toggleSegmentCompletion(id);
+        return;
+      }
+      const startSeg = event.target.closest('[data-action="start-segment"]');
+      if (startSeg) {
+        await api.updateAssignmentSegmentTimer(startSeg.dataset.segmentId, 'start');
+        await loadAssignmentSegments();
+        return;
+      }
+      const pauseSeg = event.target.closest('[data-action="pause-segment"]');
+      if (pauseSeg) {
+        await api.updateAssignmentSegmentTimer(pauseSeg.dataset.segmentId, 'pause');
+        await loadAssignmentSegments();
+        return;
+      }
+      const finishSeg = event.target.closest('[data-action="finish-segment"]');
+      if (finishSeg) {
+        await api.updateAssignmentSegmentTimer(finishSeg.dataset.segmentId, 'complete');
+        await loadAssignmentSegments();
+        return;
+      }
+      const deleteSegment = event.target.closest('[data-action="delete-segment"]');
+      if (deleteSegment) {
+        const id = deleteSegment.dataset.segmentId;
+        await api.deleteAssignmentSegment(id);
+        await loadAssignmentSegments();
+        return;
+      }
+    });
+
+    elements.assignmentList.addEventListener('change', async (event) => {
+      const durationInput = event.target.closest('[data-action="update-duration"]');
+      if (durationInput) {
+        const id = durationInput.dataset.assignmentId;
+        const minutes = Number(durationInput.value);
+        await updateAssignmentDuration(id, minutes);
+      }
+      const editForm = event.target.closest('.assignment-edit-form');
+      if (editForm && event.target.name === 'allDay') {
+        const timeRow = editForm.querySelector('[data-time-row]');
+        if (timeRow) {
+          timeRow.style.display = event.target.checked ? 'none' : 'grid';
+        }
+      }
+    });
+
+    elements.assignmentList.addEventListener('submit', async (event) => {
+      const segmentForm = event.target.closest('.segment-form');
+      if (segmentForm) {
+        event.preventDefault();
+        const assignmentId = segmentForm.dataset.assignmentId;
+        const formData = new FormData(segmentForm);
+        const title = (formData.get('title') || '').toString().trim();
+        if (!title) return;
+        const due = formData.get('due');
+        const minutes = Number(formData.get('minutes') || 0);
+        await api.createAssignmentSegment({
+          assignmentId,
+          title,
+          due: due ? new Date(`${due}T00:00:00`) : null,
+          estimatedDuration: minutes > 0 ? minutes : 0
+        });
+        segmentForm.reset();
+        await loadAssignmentSegments();
+        return;
+      }
+
+      const editForm = event.target.closest('.assignment-edit-form');
+      if (editForm) {
+        event.preventDefault();
+        const assignmentId = editForm.dataset.assignmentId;
+        const formData = new FormData(editForm);
+        const current = state.assignments.find((a) => a.id === assignmentId);
+        if (!current) return;
+        const updated = { ...current };
+        updated.title = formData.get('title')?.toString().trim() || updated.title;
+        updated.course = formData.get('course')?.toString().trim() || '';
+        updated.location = formData.get('location')?.toString().trim() || '';
+        updated.description = formData.get('description')?.toString() || '';
+        updated.url = formData.get('url')?.toString().trim() || '';
+        const duration = Number(formData.get('duration') || updated.estimatedDuration || 0);
+        updated.estimatedDuration = Number.isNaN(duration) ? 0 : duration;
+        const allDay = formData.get('allDay') === 'on';
+        updated.allDay = allDay;
+        const due = formData.get('due')?.toString();
+        if (due) {
+          updated.due = allDay ? new Date(`${due}T00:00:00`) : new Date(due);
+          if (allDay) {
+            const end = new Date(`${due}T00:00:00`);
+            end.setHours(23, 59, 0, 0);
+            updated.end = end;
+          }
+        }
+        await api.updateAssignment(updated);
+        await loadAssignments();
+      }
     });
   }
 
@@ -226,6 +613,21 @@ async function loadTasks() {
   setState({ tasks: payload.tasks ?? [] });
 }
 
+async function loadTaskSegments() {
+  const payload = await api.listTaskSegments().catch(() => ({ segments: [] }));
+  setState({ taskSegments: payload.segments ?? [] });
+}
+
+async function loadAssignments() {
+  const payload = await api.listAssignments().catch(() => ({ assignments: [], assignmentSync: null }));
+  setState({ assignments: payload.assignments ?? [], assignmentSync: payload.assignmentSync ?? null });
+}
+
+async function loadAssignmentSegments() {
+  const payload = await api.listAssignmentSegments().catch(() => ({ segments: [] }));
+  setState({ assignmentSegments: payload.segments ?? [] });
+}
+
 async function loadRoutines() {
   const payload = await api.listRoutines().catch(() => ({ routines: [] }));
   setState({ routines: payload.routines ?? [] });
@@ -241,6 +643,37 @@ async function refreshInsights() {
   setState({ insights: report });
 }
 
+async function toggleTaskCompletion(id) {
+  const existing = state.tasks.find((t) => t.id === id);
+  if (!existing) return;
+  await api.updateTask({ ...existing, isCompleted: !existing.isCompleted });
+  await loadTasks();
+}
+
+async function toggleTaskSegmentCompletion(id) {
+  const existing = state.taskSegments.find((s) => s.id === id);
+  if (!existing) return;
+  await api.updateTaskSegment({ ...existing, isCompleted: !existing.isCompleted });
+  await loadTaskSegments();
+}
+
+async function promptEditTask(id) {
+  const existing = state.tasks.find((t) => t.id === id);
+  if (!existing) return;
+  const title = window.prompt('Update title', existing.title);
+  if (title === null) return;
+  const duration = window.prompt('Update duration (minutes)', existing.estimatedDuration ?? 60);
+  const priority = window.prompt('Update priority (1-5)', existing.priority ?? 3);
+  const payload = {
+    ...existing,
+    title: title.trim() || existing.title,
+    estimatedDuration: Number(duration ?? existing.estimatedDuration ?? 60),
+    priority: Number(priority ?? existing.priority ?? 3)
+  };
+  await api.updateTask(payload);
+  await loadTasks();
+}
+
 async function respondAssistant(message) {
   setState({ assistantPending: true });
   try {
@@ -253,6 +686,33 @@ async function respondAssistant(message) {
   } finally {
     setState({ assistantPending: false });
   }
+}
+
+async function toggleAssignmentCompletion(id) {
+  const existing = state.assignments.find((a) => a.id === id);
+  if (!existing) return;
+  await api.updateAssignment({ ...existing, isCompleted: !existing.isCompleted });
+  await loadAssignments();
+}
+
+async function updateAssignmentDuration(id, minutes) {
+  const existing = state.assignments.find((a) => a.id === id);
+  if (!existing) return;
+  const sanitized = Number.isNaN(minutes) || minutes < 0 ? 0 : Math.round(minutes);
+  await api.updateAssignment({ ...existing, estimatedDuration: sanitized });
+  await loadAssignments();
+}
+
+async function toggleSegmentCompletion(id) {
+  const existing = state.assignmentSegments.find((s) => s.id === id);
+  if (!existing) return;
+  await api.updateAssignmentSegment({ ...existing, isCompleted: !existing.isCompleted });
+  await loadAssignmentSegments();
+}
+
+function setImportStatus(message) {
+  if (!elements.assignmentImportStatus) return;
+  elements.assignmentImportStatus.textContent = message;
 }
 
 function pushAssistantMessage(role, content) {

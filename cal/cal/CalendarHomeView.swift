@@ -5,6 +5,7 @@ struct CalendarHomeView: View {
     @EnvironmentObject private var data: AppData
     @Environment(\.calendar) private var calendar
     @Environment(\.locale) private var locale
+    @Environment(\.colorScheme) private var colorScheme
     @State private var now: Date = Date()
     @State private var selectedDate: Date? = nil
     @State private var activeCountdownRoute: CountdownRoute? = nil
@@ -14,15 +15,22 @@ struct CalendarHomeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
-                CalendarMonthView(onDayTap: { date in
-                    selectedDate = date
-                }, eventsProvider: { date in
-                    // Count todos and assignments for the given date
-                    let todoCount = data.todos.filter { calendar.isDate($0.dueDate, inSameDayAs: date) }.count
-                    let assignmentCount = data.assignments.filter { calendar.isDate($0.dueDate, inSameDayAs: date) }.count
-                    let total = todoCount + assignmentCount
-                    return total > 0 ? total : nil
-                })
+                ZStack {
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .fill(calendarCardColor)
+                        .shadow(color: Color.black.opacity(calendarCardShadowOpacity), radius: 12, y: 4)
+                    CalendarMonthView(onDayTap: { date in
+                        selectedDate = date
+                    }, eventsProvider: { date in
+                        // Count todos and assignments for the given date
+                        let todoCount = data.todos.filter { $0.hasDeadline && calendar.isDate($0.dueDate, inSameDayAs: date) }.count
+                        let assignmentCount = data.assignments.filter { calendar.isDate($0.dueDate, inSameDayAs: date) }.count
+                        let total = todoCount + assignmentCount
+                        return total > 0 ? total : nil
+                    })
+                    .padding()
+                }
+                .padding(.horizontal, 4)
 
                 TodayCountdownSection(
                     items: todaysCountdowns,
@@ -31,6 +39,7 @@ struct CalendarHomeView: View {
                     locale: locale,
                     onToggleCompletion: handleCompletionToggle,
                     onStartTracking: handleStartTracking,
+                    onPauseTracking: handlePauseTracking,
                     onFinishTracking: handleFinishTracking,
                     onSelectItem: { route in
                         activeCountdownRoute = route
@@ -45,6 +54,7 @@ struct CalendarHomeView: View {
                         locale: locale,
                         onToggleCompletion: handleCompletionToggle,
                         onStartTracking: handleStartTracking,
+                        onPauseTracking: handlePauseTracking,
                         onFinishTracking: handleFinishTracking,
                         onSelectItem: { route in
                             activeCountdownRoute = route
@@ -92,7 +102,7 @@ struct CalendarHomeView: View {
         var items: [CountdownItem] = []
 
         for task in data.todos {
-            if calendar.isDate(task.dueDate, inSameDayAs: now) {
+            if task.hasDeadline, calendar.isDate(task.dueDate, inSameDayAs: now) {
                 items.append(CountdownItem(task: task))
             }
         }
@@ -100,6 +110,12 @@ struct CalendarHomeView: View {
         for assignment in data.assignments {
             if calendar.isDate(assignment.dueDate, inSameDayAs: now) {
                 items.append(CountdownItem(assignment: assignment, calendar: calendar))
+            }
+        }
+
+        for segment in data.taskSegments {
+            if calendar.isDate(segment.dueDate, inSameDayAs: now) {
+                items.append(CountdownItem(segment: segment, calendar: calendar, parentTitle: segmentParentTitle(for: segment)))
             }
         }
 
@@ -115,11 +131,27 @@ struct CalendarHomeView: View {
         let assignmentItems = data.assignments
             .filter { $0.actualStartTime != nil && $0.actualEndTime == nil }
             .map { CountdownItem(assignment: $0, calendar: calendar) }
-        return (todoItems + assignmentItems).sorted {
+        let segmentItems = data.taskSegments
+            .filter { $0.actualStartTime != nil && $0.actualEndTime == nil }
+            .map { CountdownItem(segment: $0, calendar: calendar, parentTitle: segmentParentTitle(for: $0)) }
+        return (todoItems + assignmentItems + segmentItems).sorted {
             let lhs = $0.actualStartTime ?? $0.startDate
             let rhs = $1.actualStartTime ?? $1.startDate
             return lhs < rhs
         }
+    }
+}
+
+private extension CalendarHomeView {
+    var calendarCardColor: Color {
+        if colorScheme == .dark {
+            return Color(.systemGray5)
+        }
+        return Color(.white)
+    }
+
+    var calendarCardShadowOpacity: Double {
+        colorScheme == .dark ? 0 : 0.08
     }
 }
 
@@ -139,6 +171,8 @@ private extension CalendarHomeView {
             data.toggleTaskCompletion(id: task.id)
         case .assignment(let assignment):
             data.toggleAssignmentCompletion(id: assignment.id)
+        case .segment(let segment, _):
+            data.toggleSegmentCompletion(id: segment.id)
         }
     }
 
@@ -148,6 +182,19 @@ private extension CalendarHomeView {
             data.startTaskProgress(id: task.id)
         case .assignment(let assignment):
             data.startAssignmentProgress(id: assignment.id)
+        case .segment(let segment, _):
+            data.startSegmentProgress(id: segment.id)
+        }
+    }
+
+    func handlePauseTracking(for item: CountdownItem) {
+        switch item.source {
+        case .todo(let task):
+            data.pauseTaskProgress(id: task.id)
+        case .assignment(let assignment):
+            data.pauseAssignmentProgress(id: assignment.id)
+        case .segment(let segment, _):
+            data.pauseSegmentProgress(id: segment.id)
         }
     }
 
@@ -157,6 +204,24 @@ private extension CalendarHomeView {
             data.completeTaskProgress(id: task.id)
         case .assignment(let assignment):
             data.completeAssignmentProgress(id: assignment.id)
+        case .segment(let segment, _):
+            data.completeSegmentProgress(id: segment.id)
+        }
+    }
+
+    func segmentParentTitle(for segment: TaskSegment) -> String {
+        switch segment.parentType {
+        case .todo:
+            if let uuid = UUID(uuidString: segment.parentIdentifier),
+               let todo = data.todos.first(where: { $0.id == uuid }) {
+                return todo.title
+            }
+            return "Todo"
+        case .assignment:
+            if let assignment = data.assignments.first(where: { $0.id == segment.parentIdentifier }) {
+                return assignment.title
+            }
+            return "Assignment"
         }
     }
 }
@@ -173,6 +238,7 @@ private struct TodayCountdownSection: View {
     let locale: Locale
     let onToggleCompletion: (CountdownItem) -> Void
     let onStartTracking: (CountdownItem) -> Void
+    let onPauseTracking: (CountdownItem) -> Void
     let onFinishTracking: (CountdownItem) -> Void
     let onSelectItem: ((CountdownRoute) -> Void)?
 
@@ -185,7 +251,7 @@ private struct TodayCountdownSection: View {
                 ContentUnavailableView(
                     "No events today",
                     systemImage: "sun.max",
-                    description: Text("Add a todo or assignment and you'll see the countdown here.")
+                    description: Text("Add a todo, assignment, or segment and you'll see the countdown here.")
                 )
             } else {
                 LazyVStack(spacing: 16) {
@@ -200,6 +266,9 @@ private struct TodayCountdownSection: View {
                             },
                             onStart: {
                                 onStartTracking(item)
+                            },
+                            onPause: {
+                                onPauseTracking(item)
                             },
                             onFinish: {
                                 onFinishTracking(item)
@@ -222,6 +291,7 @@ private struct ActiveTrackingSection: View {
     let locale: Locale
     let onToggleCompletion: (CountdownItem) -> Void
     let onStartTracking: (CountdownItem) -> Void
+    let onPauseTracking: (CountdownItem) -> Void
     let onFinishTracking: (CountdownItem) -> Void
     let onSelectItem: ((CountdownRoute) -> Void)?
 
@@ -243,6 +313,9 @@ private struct ActiveTrackingSection: View {
                         onStart: {
                             onStartTracking(item)
                         },
+                        onPause: {
+                            onPauseTracking(item)
+                        },
                         onFinish: {
                             onFinishTracking(item)
                         },
@@ -263,9 +336,11 @@ private struct CountdownRow: View {
     let locale: Locale
     let onToggleCompletion: () -> Void
     let onStart: () -> Void
+    let onPause: () -> Void
     let onFinish: () -> Void
     let onSelect: ((CountdownRoute) -> Void)?
     @State private var showFinishConfirmation = false
+    @Environment(\.colorScheme) private var colorScheme
 
     private var dayStart: Date {
         calendar.startOfDay(for: now)
@@ -330,7 +405,7 @@ private struct CountdownRow: View {
                     Image(systemName: isCompleted ? "checkmark.circle.fill" : "circle")
                         .font(.title3)
                         .foregroundStyle(isCompleted ? Color.green : Color.secondary)
-                        .accessibilityLabel(isCompleted ? "완료 취소" : "완료 표시")
+                        .accessibilityLabel(isCompleted ? "Mark item incomplete" : "Mark item complete")
                 }
                 .buttonStyle(.plain)
 
@@ -357,7 +432,7 @@ private struct CountdownRow: View {
                         .foregroundStyle(.secondary)
 
                     if isLate {
-                        Text("늦음")
+                        Text("Late")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.red)
                     }
@@ -376,6 +451,15 @@ private struct CountdownRow: View {
                     onSelect?(.todo(task.id))
                 case .assignment(let assignment):
                     onSelect?(.assignment(assignment.id))
+                case .segment(let segment, _):
+                    switch segment.parentType {
+                    case .todo:
+                        if let uuid = UUID(uuidString: segment.parentIdentifier) {
+                            onSelect?(.todo(uuid))
+                        }
+                    case .assignment:
+                        onSelect?(.assignment(segment.parentIdentifier))
+                    }
                 }
             }
 
@@ -389,17 +473,17 @@ private struct CountdownRow: View {
             if actualStartText != nil || stopwatchText != nil || actualEndText != nil {
                 VStack(alignment: .leading, spacing: 4) {
                     if let actualStartText {
-                        Label("시작: \(actualStartText)", systemImage: "clock.arrow.circlepath")
+                        Label("Start: \(actualStartText)", systemImage: "clock.arrow.circlepath")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
                     if let stopwatchText {
-                        Label("\(item.hasTrackingCompleted ? "총 소요" : "경과"): \(stopwatchText)", systemImage: "stopwatch")
+                        Label("\(item.hasTrackingCompleted ? "Total time" : "Elapsed"): \(stopwatchText)", systemImage: "stopwatch")
                             .font(.caption)
-                            .foregroundStyle(item.isTrackingActive ? Color.accentColor : .secondary)
+                            .foregroundStyle(item.isTimerRunning ? Color.accentColor : .secondary)
                     }
                     if let actualEndText {
-                        Label("종료: \(actualEndText)", systemImage: "flag.checkered")
+                        Label("Finish: \(actualEndText)", systemImage: "flag.checkered")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
@@ -407,15 +491,32 @@ private struct CountdownRow: View {
             }
 
             HStack(spacing: 12) {
-                if !item.isTrackingActive && !item.hasTrackingCompleted {
+                if !item.hasTrackingStarted && !item.hasTrackingCompleted {
                     Button {
                         onStart()
                     } label: {
                         Label("Start", systemImage: "play.fill")
                     }
+                    .buttonStyle(.bordered)
                 }
 
-                if item.isTrackingActive {
+                if item.hasTrackingStarted && !item.hasTrackingCompleted {
+                    if item.isTimerRunning {
+                        Button {
+                            onPause()
+                        } label: {
+                            Label("Pause", systemImage: "pause.fill")
+                        }
+                        .buttonStyle(.bordered)
+                    } else {
+                        Button {
+                            onStart()
+                        } label: {
+                            Label("Resume", systemImage: "play.fill")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
                     Button {
                         showFinishConfirmation = true
                     } label: {
@@ -429,9 +530,9 @@ private struct CountdownRow: View {
         }
         .padding(16)
         .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color(.systemBackground))
-                .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(rowBackground)
+                .shadow(color: Color.black.opacity(rowShadowOpacity), radius: 4, x: 0, y: 2)
         )
         .opacity(isCompleted ? 0.7 : 1)
         .confirmationDialog("Are you really done?", isPresented: $showFinishConfirmation, titleVisibility: .visible) {
@@ -444,14 +545,14 @@ private struct CountdownRow: View {
 
     private var remainingText: String {
         if isCompleted {
-            return "완료됨"
+            return "Completed"
         }
         if isLate {
-            return "늦음"
+            return "Late"
         }
 
         if remainingInterval <= 0 {
-            return "마감 지남"
+            return "Past due"
         }
 
         let formatter = DateComponentsFormatter()
@@ -461,9 +562,9 @@ private struct CountdownRow: View {
         formatter.maximumUnitCount = 2
 
         if let formatted = formatter.string(from: remainingInterval) {
-            return "\(formatted) 남음"
+            return "\(formatted) left"
         }
-        return "곧 마감"
+        return "Due soon"
     }
 
     private var dueTimeText: String {
@@ -475,9 +576,20 @@ private struct CountdownRow: View {
 
         let dueString = formatter.string(from: item.endDate)
         if item.usesFallbackEnd {
-            return "\(dueString) (기본 23:59)"
+            return "\(dueString) (default 23:59)"
         }
         return dueString
+    }
+
+    private var rowBackground: Color {
+        if colorScheme == .dark {
+            return Color(.systemGray5)
+        }
+        return Color(.white)
+    }
+
+    private var rowShadowOpacity: Double {
+        colorScheme == .dark ? 0 : 0.05
     }
 }
 
@@ -486,6 +598,7 @@ private struct CountdownItem: Identifiable {
     enum Source {
         case todo(TaskItem)
         case assignment(SchoolAssignment)
+        case segment(TaskSegment, parentTitle: String?)
     }
 
     let source: Source
@@ -495,27 +608,30 @@ private struct CountdownItem: Identifiable {
     let actualStartTime: Date?
     let actualEndTime: Date?
     let actualDurationSeconds: Double?
+    let activeTimerStart: Date?
 
     init(task: TaskItem) {
         source = .todo(task)
         let durationInterval = TimeInterval(task.estimatedDurationMinutes ?? 0) * 60
+        let fallbackDue = task.startDate ?? Date()
+        let baseDue = task.hasDeadline ? task.dueDate : fallbackDue
 
         let derivedStart: Date
         if let explicitStart = task.startDate {
             derivedStart = explicitStart
         } else if durationInterval > 0 {
-            derivedStart = task.dueDate.addingTimeInterval(-durationInterval)
+            derivedStart = baseDue.addingTimeInterval(-durationInterval)
         } else {
-            derivedStart = task.dueDate
+            derivedStart = baseDue
         }
 
         var derivedEnd: Date
         if let explicitStart = task.startDate, durationInterval > 0 {
             derivedEnd = explicitStart.addingTimeInterval(durationInterval)
         } else if durationInterval > 0 {
-            derivedEnd = task.dueDate
+            derivedEnd = baseDue
         } else {
-            derivedEnd = task.dueDate
+            derivedEnd = baseDue
         }
 
         if derivedEnd < derivedStart {
@@ -524,10 +640,11 @@ private struct CountdownItem: Identifiable {
 
         startDate = derivedStart
         endDate = derivedEnd
-        usesFallbackEnd = false
+        usesFallbackEnd = !task.hasDeadline
         actualStartTime = task.actualStartTime
         actualEndTime = task.actualEndTime
         actualDurationSeconds = task.actualDurationSeconds
+        activeTimerStart = task.activeTimerStart
     }
 
     init(assignment: SchoolAssignment, calendar: Calendar) {
@@ -538,6 +655,45 @@ private struct CountdownItem: Identifiable {
         actualStartTime = assignment.actualStartTime
         actualEndTime = assignment.actualEndTime
         actualDurationSeconds = assignment.actualDurationSeconds
+        activeTimerStart = assignment.activeTimerStart
+    }
+
+    init(segment: TaskSegment, calendar: Calendar, parentTitle: String?) {
+        source = .segment(segment, parentTitle: parentTitle)
+        let durationInterval = TimeInterval(segment.estimatedDurationMinutes ?? 0) * 60
+        let baseDue = segment.dueDate
+
+        let derivedStart: Date
+        if let explicitStart = segment.startDate {
+            derivedStart = explicitStart
+        } else if segment.hasDeadline && durationInterval > 0 {
+            derivedStart = baseDue.addingTimeInterval(-durationInterval)
+        } else {
+            derivedStart = baseDue
+        }
+
+        var derivedEnd: Date
+        if let explicitStart = segment.startDate, durationInterval > 0 {
+            derivedEnd = explicitStart.addingTimeInterval(durationInterval)
+        } else if segment.hasDeadline {
+            derivedEnd = baseDue
+        } else if durationInterval > 0 {
+            derivedEnd = derivedStart.addingTimeInterval(durationInterval)
+        } else {
+            derivedEnd = baseDue
+        }
+
+        if derivedEnd < derivedStart {
+            derivedEnd = derivedStart
+        }
+
+        startDate = derivedStart
+        endDate = derivedEnd
+        usesFallbackEnd = !segment.hasDeadline
+        actualStartTime = segment.actualStartTime
+        actualEndTime = segment.actualEndTime
+        actualDurationSeconds = segment.actualDurationSeconds
+        activeTimerStart = segment.activeTimerStart
     }
 
     var id: String {
@@ -546,6 +702,8 @@ private struct CountdownItem: Identifiable {
             return "todo-\(task.id.uuidString)"
         case .assignment(let assignment):
             return "assignment-\(assignment.id)"
+        case .segment(let segment, _):
+            return "segment-\(segment.id.uuidString)"
         }
     }
 
@@ -555,6 +713,8 @@ private struct CountdownItem: Identifiable {
             return task.title
         case .assignment(let assignment):
             return assignment.title
+        case .segment(let segment, _):
+            return segment.title
         }
     }
 
@@ -564,6 +724,8 @@ private struct CountdownItem: Identifiable {
             return task.priority.displayName
         case .assignment(let assignment):
             return assignment.course ?? "Canvas assignment"
+        case .segment(_, let parentTitle):
+            return parentTitle
         }
     }
 
@@ -573,6 +735,8 @@ private struct CountdownItem: Identifiable {
             return task.priority.tintColor
         case .assignment:
             return .purple
+        case .segment(let segment, _):
+            return segment.priority.tintColor
         }
     }
 
@@ -589,6 +753,15 @@ private struct CountdownItem: Identifiable {
             }
         case .assignment:
             return "book.closed.fill"
+        case .segment(let segment, _):
+            switch segment.priority {
+            case .high:
+                return "flame.fill"
+            case .medium:
+                return "clock.fill"
+            case .low:
+                return "circle.dotted"
+            }
         }
     }
 
@@ -598,24 +771,38 @@ private struct CountdownItem: Identifiable {
             return task.isCompleted
         case .assignment(let assignment):
             return assignment.isCompleted
+        case .segment(let segment, _):
+            return segment.isCompleted
         }
+    }
+
+    var hasTrackingStarted: Bool {
+        actualStartTime != nil
+    }
+
+    var isTimerRunning: Bool {
+        activeTimerStart != nil
     }
 
     var isTrackingActive: Bool {
-        actualStartTime != nil && actualEndTime == nil
+        hasTrackingStarted && actualEndTime == nil
     }
 
     var hasTrackingCompleted: Bool {
-        actualStartTime != nil && actualEndTime != nil
+        actualEndTime != nil
     }
 
     func elapsedSeconds(relativeTo now: Date = Date()) -> TimeInterval? {
+        if let activeStart = activeTimerStart {
+            let accumulated = actualDurationSeconds ?? 0
+            return max(0, accumulated + now.timeIntervalSince(activeStart))
+        }
+        if let total = actualDurationSeconds {
+            return max(0, total)
+        }
         if let start = actualStartTime {
             let end = actualEndTime ?? now
             return max(0, end.timeIntervalSince(start))
-        }
-        if let stored = actualDurationSeconds {
-            return stored
         }
         return nil
     }
@@ -660,8 +847,8 @@ private struct CountdownItem: Identifiable {
             .environmentObject({
                 let data = AppData()
                 data.todos = [
-                    TaskItem(title: "과제 제출", dueDate: Calendar.current.date(byAdding: .hour, value: 3, to: Date()) ?? Date(), priority: .high),
-                    TaskItem(title: "회의 준비", dueDate: Calendar.current.date(byAdding: .hour, value: 6, to: Date()) ?? Date(), priority: .medium)
+                    TaskItem(title: "Submit assignment", dueDate: Calendar.current.date(byAdding: .hour, value: 3, to: Date()) ?? Date(), priority: .high),
+                    TaskItem(title: "Prepare meeting", dueDate: Calendar.current.date(byAdding: .hour, value: 6, to: Date()) ?? Date(), priority: .medium)
                 ]
                 return data
             }())

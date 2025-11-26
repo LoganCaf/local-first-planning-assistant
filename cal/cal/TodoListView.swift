@@ -1,5 +1,8 @@
 import SwiftUI
 import MapKit
+#if os(iOS)
+import UIKit
+#endif
 
 struct TodoListView: View {
     @EnvironmentObject private var data: AppData
@@ -21,15 +24,19 @@ struct TodoListView: View {
                 } else {
                     List {
                         ForEach(data.todos) { task in
-                            TodoRow(
-                                task: task,
-                                onToggleCompletion: {
-                                    data.toggleTaskCompletion(id: task.id)
-                                },
-                                onEdit: {
-                                    beginEditing(task)
-                                }
-                            )
+                            NavigationLink {
+                                TodoDetailView(todoID: task.id)
+                            } label: {
+                                TodoRow(
+                                    task: task,
+                                    onToggleCompletion: {
+                                        data.toggleTaskCompletion(id: task.id)
+                                    },
+                                    onEdit: {
+                                        beginEditing(task)
+                                    }
+                                )
+                            }
                             .swipeActions(edge: .leading, allowsFullSwipe: false) {
                                 Button("Edit") {
                                     beginEditing(task)
@@ -65,9 +72,23 @@ struct TodoListView: View {
                     priority: draft.priority,
                     estimatedDurationMinutes: draft.estimatedDurationMinutes,
                     location: draft.location,
-                    travelEstimates: draft.travelEstimates
+                    travelEstimates: draft.travelEstimates,
+                    hasDeadline: draft.hasDeadline
                 )
                 data.add(task: newTask)
+                for segmentDraft in draft.segments {
+                    let segment = TaskSegment(
+                        parentType: .todo,
+                        parentIdentifier: newTask.id.uuidString,
+                        title: segmentDraft.title.trimmingCharacters(in: .whitespacesAndNewlines),
+                        dueDate: segmentDraft.dueDate,
+                        startDate: segmentDraft.startDate,
+                        hasDeadline: segmentDraft.hasDeadline,
+                        priority: segmentDraft.priority,
+                        estimatedDurationMinutes: segmentDraft.estimatedDurationMinutes
+                    )
+                    data.add(segment: segment)
+                }
             }
         }
         .sheet(item: $editingTask) { task in
@@ -80,6 +101,7 @@ struct TodoListView: View {
                 updated.estimatedDurationMinutes = draft.estimatedDurationMinutes
                 updated.location = draft.location
                 updated.travelEstimates = draft.travelEstimates
+                updated.hasDeadline = draft.hasDeadline
                 data.update(task: updated)
             }
         }
@@ -100,16 +122,17 @@ struct DraftTask {
     var title: String = ""
     var dueDate: Date = Date()
     var startDate: Date? = nil
-    var usesDueTime: Bool = true
+    var hasDeadline: Bool = true
     var priority: TaskPriority = .medium
     var estimatedDurationMinutes: Int? = nil
     var location: TaskLocation? = nil
     var travelEstimates: TravelEstimates? = nil
+    var segments: [TaskSegmentDraft] = []
 
     var isValid: Bool {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
-        if let startDate, startDate > dueDate {
+        if hasDeadline, let startDate, startDate > dueDate {
             return false
         }
         return true
@@ -122,13 +145,12 @@ struct DraftTask {
         title = task.title
         dueDate = task.dueDate
         startDate = task.startDate
-        let calendar = Calendar.current
-        let endOfDay = calendar.endOfDay(for: calendar.startOfDay(for: task.dueDate)) ?? task.dueDate
-        usesDueTime = !calendar.isDate(task.dueDate, equalTo: endOfDay, toGranularity: .minute)
+        hasDeadline = task.hasDeadline
         priority = task.priority
         estimatedDurationMinutes = task.estimatedDurationMinutes
         location = task.location
         travelEstimates = task.travelEstimates
+        segments = []
     }
 }
 
@@ -141,11 +163,12 @@ struct TodoRow: View {
     @Environment(\.locale) private var locale
 
     private var isLate: Bool {
-        !task.isCompleted && task.dueDate < Date()
+        task.hasDeadline && !task.isCompleted && task.dueDate < Date()
     }
 
-    private var deadlineText: String {
-        formattedDateTime(task.dueDate)
+    private var deadlineText: String? {
+        guard task.hasDeadline else { return nil }
+        return formattedDateTime(task.dueDate)
     }
 
     private var actualStartText: String? {
@@ -154,7 +177,8 @@ struct TodoRow: View {
     }
 
     private var inferredStartText: String? {
-        guard task.startDate == nil,
+        guard task.hasDeadline,
+              task.startDate == nil,
               let minutes = task.estimatedDurationMinutes,
               minutes > 0 else {
             return nil
@@ -230,9 +254,15 @@ struct TodoRow: View {
                     .opacity(task.isCompleted ? 0.6 : 1)
 
                 VStack(alignment: .leading, spacing: 6) {
-                    Label("Due: \(deadlineText)", systemImage: "calendar.badge.clock")
-                        .font(.caption)
-                        .foregroundStyle(isLate ? Color.red : Color.secondary)
+                    if let deadlineText {
+                        Label("Due: \(deadlineText)", systemImage: "calendar.badge.clock")
+                            .font(.caption)
+                            .foregroundStyle(isLate ? Color.red : Color.secondary)
+                    } else {
+                        Label("Deadline: TBD", systemImage: "calendar.badge.clock")
+                            .font(.caption)
+                            .foregroundStyle(Color.secondary)
+                    }
 
                     Label("Priority: \(task.priority.displayName)", systemImage: task.priority.systemImageName)
                         .font(.caption)
@@ -316,9 +346,12 @@ struct TaskEditorSheet: View {
 
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var locationServices = LocationServices.shared
-    @State private var isShowingPlaceSearch = false
     @State private var isComputingTravel = false
     @State private var travelError: String?
+    @State private var isPresentingSegmentSheet = false
+    @State private var segmentEditorMode: TaskSegmentEditorSheet.Mode = .create
+    @State private var activeSegmentDraft = TaskSegmentDraft()
+    @State private var editingSegmentIndex: Int?
 
     private let durationOptions: [Int] = Array(stride(from: 0, through: 8 * 60, by: 30))
 
@@ -330,16 +363,32 @@ struct TaskEditorSheet: View {
                 }
 
                 Section("Start time") {
-                    Toggle("Provide start time", isOn: usesStartBinding)
+                    Toggle("Provide start time", isOn: providesStartBinding)
                     if draft.startDate != nil {
-                        DatePicker("Start", selection: startDateBinding, displayedComponents: [.date, .hourAndMinute])
+                        DatePicker(
+                            "Start",
+                            selection: startDateBinding,
+                            displayedComponents: [.date, .hourAndMinute]
+                        )
+                    } else {
+                        Text("시작 시간 미정")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
 
                 Section("Deadline") {
-                    Toggle("Provide deadline", isOn: usesDueTimeBinding)
-                    if draft.usesDueTime {
-                        DatePicker("Due date & time", selection: dueDateTimeBinding, displayedComponents: [.date, .hourAndMinute])
+                    Toggle("Provide deadline", isOn: hasDeadlineBinding)
+                    if draft.hasDeadline {
+                        DatePicker(
+                            "Due",
+                            selection: dueDateBinding,
+                            displayedComponents: [.date, .hourAndMinute]
+                        )
+                    } else {
+                        Text("마감 미정")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
 
@@ -383,8 +432,13 @@ struct TaskEditorSheet: View {
                             .foregroundStyle(.red)
                     }
 
-                    Button("장소 선택") {
-                        isShowingPlaceSearch = true
+                    NavigationLink("장소 선택") {
+                        PlaceSearchView { location in
+                            draft.location = location
+                            Task {
+                                await recomputeTravelEstimates()
+                            }
+                        }
                     }
 
                     if draft.location != nil {
@@ -430,8 +484,72 @@ struct TaskEditorSheet: View {
                             Text(durationLabel(for: minutes)).tag(minutes)
                         }
                     }
-                    .pickerStyle(.wheel)
-                    .frame(height: 160)
+                    .pickerStyle(.navigationLink)
+                }
+
+                if mode == .create {
+                    Section("Segments") {
+                        if draft.segments.isEmpty {
+                            Text("No segments yet. Tap the button below to add one.")
+                                .font(.footnote)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            ForEach(Array(draft.segments.enumerated()), id: \.offset) { index, segment in
+                                VStack(alignment: .leading, spacing: 6) {
+                                    Text(segment.title.isEmpty ? "Untitled segment" : segment.title)
+                                        .font(.headline)
+                                    if segment.hasDeadline {
+                                        Text("Due: \(formattedDateTime(segment.dueDate))")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    } else {
+                                        Text("No deadline")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    if let start = segment.startDate {
+                                        Text("Start: \(formattedDateTime(start))")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    if let duration = segment.estimatedDurationMinutes {
+                                        Text("Duration: \(durationLabel(for: duration))")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    HStack(spacing: 12) {
+                                        Button("Edit") {
+                                            segmentEditorMode = .edit
+                                            editingSegmentIndex = index
+                                            activeSegmentDraft = segment
+                                            isPresentingSegmentSheet = true
+                                        }
+                                        .buttonStyle(.borderless)
+
+                                        Button("Delete", role: .destructive) {
+                                            draft.segments.remove(at: index)
+                                        }
+                                        .buttonStyle(.borderless)
+                                    }
+                                    .font(.caption)
+                                }
+                                .padding(.vertical, 4)
+                            }
+                        }
+
+                        Button {
+                            segmentEditorMode = .create
+                            editingSegmentIndex = nil
+                            activeSegmentDraft = TaskSegmentDraft()
+                            activeSegmentDraft.dueDate = draft.dueDate
+                            activeSegmentDraft.hasDeadline = draft.hasDeadline
+                            activeSegmentDraft.startDate = draft.startDate
+                            activeSegmentDraft.priority = draft.priority
+                            isPresentingSegmentSheet = true
+                        } label: {
+                            Label("Add segment", systemImage: "plus")
+                        }
+                    }
                 }
             }
             .navigationTitle(mode == .create ? "Add todo" : "Edit todo")
@@ -451,33 +569,41 @@ struct TaskEditorSheet: View {
             }
         }
         .presentationDetents([.medium, .large])
-        .sheet(isPresented: $isShowingPlaceSearch) {
-            PlaceSearchView { location in
-                draft.location = location
-                Task {
-                    await recomputeTravelEstimates()
+        .sheet(isPresented: $isPresentingSegmentSheet) {
+            TaskSegmentEditorSheet(
+                mode: segmentEditorMode,
+                draft: $activeSegmentDraft,
+                parentName: draft.title.isEmpty ? "New Todo" : draft.title
+            ) { savedDraft in
+                switch segmentEditorMode {
+                case .create:
+                    draft.segments.append(savedDraft)
+                case .edit:
+                    if let index = editingSegmentIndex, draft.segments.indices.contains(index) {
+                        draft.segments[index] = savedDraft
+                    }
                 }
+                editingSegmentIndex = nil
             }
-        }
-        .onAppear {
-            if locationServices.authorizationStatus == .notDetermined {
-                locationServices.requestAuthorization()
-            } else {
-                locationServices.startUpdating()
-            }
-        }
-        .onDisappear {
-            locationServices.stopUpdating()
         }
     }
 
-    private var usesStartBinding: Binding<Bool> {
+    private var durationBinding: Binding<Int> {
+        Binding(
+            get: { draft.estimatedDurationMinutes ?? 0 },
+            set: { newValue in
+                draft.estimatedDurationMinutes = newValue == 0 ? nil : newValue
+            }
+        )
+    }
+
+    private var providesStartBinding: Binding<Bool> {
         Binding(
             get: { draft.startDate != nil },
             set: { newValue in
                 if newValue {
                     if draft.startDate == nil {
-                        draft.startDate = draft.dueDate.addingTimeInterval(-30 * 60)
+                        draft.startDate = defaultStartDate()
                     }
                 } else {
                     draft.startDate = nil
@@ -486,42 +612,41 @@ struct TaskEditorSheet: View {
         )
     }
 
-    private var usesDueTimeBinding: Binding<Bool> {
+    private var hasDeadlineBinding: Binding<Bool> {
         Binding(
-            get: { draft.usesDueTime },
+            get: { draft.hasDeadline },
             set: { newValue in
-                applyDueTimeToggle(newValue)
-            }
-        )
-    }
-
-    private var dueDateTimeBinding: Binding<Date> {
-        Binding(
-            get: { draft.dueDate },
-            set: { newValue in
-                draft.dueDate = newValue
-                ensureStartNotAfterDue()
+                let previous = draft.hasDeadline
+                draft.hasDeadline = newValue
+                if newValue {
+                    if !previous {
+                        let baseline = draft.startDate ?? Date()
+                        if draft.dueDate < baseline {
+                            draft.dueDate = baseline
+                        }
+                    }
+                    ensureStartBeforeDue()
+                }
             }
         )
     }
 
     private var startDateBinding: Binding<Date> {
         Binding(
-            get: { draft.startDate ?? draft.dueDate },
+            get: { draft.startDate ?? defaultStartDate() },
             set: { newValue in
                 draft.startDate = newValue
-                if draft.dueDate < newValue {
-                    draft.dueDate = newValue
-                }
+                ensureStartBeforeDue()
             }
         )
     }
 
-    private var durationBinding: Binding<Int> {
+    private var dueDateBinding: Binding<Date> {
         Binding(
-            get: { draft.estimatedDurationMinutes ?? 0 },
+            get: { draft.dueDate },
             set: { newValue in
-                draft.estimatedDurationMinutes = newValue == 0 ? nil : newValue
+                draft.dueDate = newValue
+                ensureStartBeforeDue()
             }
         )
     }
@@ -538,65 +663,80 @@ struct TaskEditorSheet: View {
         }
     }
 
-    private func ensureStartNotAfterDue() {
-        if let start = draft.startDate, start > draft.dueDate {
-            if draft.usesDueTime {
-                draft.dueDate = start
-            } else {
-                let base = Calendar.current.startOfDay(for: start)
-                draft.dueDate = Calendar.current.endOfDay(for: base) ?? start
-            }
-        }
-    }
-
-    private func applyDueTimeToggle(_ enabled: Bool) {
-        draft.usesDueTime = enabled
-        let calendar = Calendar.current
-        if enabled {
-            let baseDay = calendar.startOfDay(for: draft.dueDate)
-            draft.dueDate = calendar.date(bySettingHour: 21, minute: 0, second: 0, of: baseDay) ?? draft.dueDate
-            if draft.startDate == nil {
-                draft.startDate = draft.dueDate.addingTimeInterval(-30 * 60)
-            }
-        } else {
-            draft.startDate = nil
-            draft.dueDate = calendar.endOfDay(for: draft.dueDate) ?? draft.dueDate
-        }
-        ensureStartNotAfterDue()
-    }
-
-    private func requestLocationAccess() {
-        locationServices.requestAuthorization()
-        locationServices.startUpdating()
-    }
-
-    @MainActor
-    private func recomputeTravelEstimates() async {
-        guard let location = draft.location else {
-            return
-        }
-        guard let origin = locationServices.currentLocation else {
-            travelError = TravelTimeError.missingOrigin.localizedDescription
-            return
-        }
-        isComputingTravel = true
-        travelError = nil
-        do {
-            let estimates = try await TravelTimeCalculator.estimateTravel(
-                origin: origin.coordinate,
-                destination: location.coordinate
-            )
-            draft.travelEstimates = estimates
-        } catch {
-            travelError = error.localizedDescription
-        }
-        isComputingTravel = false
+    private func formattedDateTime(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar.current
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
     }
 
     private func relativeDateString(from date: Date) -> String {
         let formatter = RelativeDateTimeFormatter()
-        formatter.unitsStyle = .abbreviated
+        formatter.unitsStyle = .full
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    private func defaultStartDate() -> Date {
+        if draft.hasDeadline {
+            return draft.dueDate.addingTimeInterval(-30 * 60)
+        }
+        return Date()
+    }
+
+    private func ensureStartBeforeDue() {
+        guard draft.hasDeadline else { return }
+        if let start = draft.startDate, start > draft.dueDate {
+            draft.dueDate = start
+        }
+    }
+
+    private func requestLocationAccess() {
+        switch locationServices.authorizationStatus {
+        case .notDetermined:
+            locationServices.requestAuthorization()
+        case .denied, .restricted:
+            #if os(iOS)
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                UIApplication.shared.open(url)
+            }
+            #endif
+        default:
+            locationServices.startUpdating()
+        }
+    }
+
+    private func recomputeTravelEstimates() async {
+        guard let destination = draft.location?.coordinate else { return }
+
+        await MainActor.run {
+            isComputingTravel = true
+            travelError = nil
+        }
+
+        let origin = await MainActor.run { locationServices.currentLocation?.coordinate }
+
+        guard let origin else {
+            await MainActor.run {
+                travelError = TravelTimeError.missingOrigin.localizedDescription
+                isComputingTravel = false
+            }
+            return
+        }
+
+        do {
+            let estimates = try await TravelTimeCalculator.estimateTravel(origin: origin, destination: destination)
+            await MainActor.run {
+                draft.travelEstimates = estimates
+                travelError = nil
+                isComputingTravel = false
+            }
+        } catch {
+            await MainActor.run {
+                travelError = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                isComputingTravel = false
+            }
+        }
     }
 }
 

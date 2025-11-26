@@ -4,7 +4,7 @@ import Combine
 
 struct SchoolWorkView: View {
     var showNavigationTitle: Bool = true
-    private static let defaultFeedURL = "https://elearning.mines.edu/feeds/calendars/user_Amn7tDO3I65L17MwbcItRmNxJId33cwsrbvEYGCF.ics"
+    private static let defaultFeedURL = ""
     private let parser = CanvasICSParser()
     @EnvironmentObject private var data: AppData
     @Environment(\.calendar) private var calendar
@@ -35,7 +35,6 @@ struct SchoolWorkView: View {
     var body: some View {
         NavigationStack {
             assignmentListContent
-            .navigationTitle(showNavigationTitle ? "SCHOOL WORK" : "")
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if isSyncingAssignments {
@@ -523,11 +522,18 @@ struct AssignmentDetailView: View {
     @Environment(\.calendar) private var calendar
     @Environment(\.locale) private var locale
     @State private var now: Date = Date()
+    @State private var isPresentingSegmentSheet = false
+    @State private var segmentDraft = TaskSegmentDraft()
+    @State private var editingSegment: TaskSegment?
 
     private let timer = Timer.publish(every: 60, on: .main, in: .common).autoconnect()
 
     private var assignment: SchoolAssignment? {
         data.assignments.first(where: { $0.id == assignmentID })
+    }
+
+    private var segments: [TaskSegment] {
+        data.segments(for: .assignment, parentIdentifier: assignmentID)
     }
 
     private var isLate: Bool {
@@ -553,7 +559,7 @@ struct AssignmentDetailView: View {
                             .tint(assignment.isCompleted ? .orange : .green)
 
                             if isLate {
-                                Text("늦음")
+                                Text("Late")
                                     .font(.callout.weight(.semibold))
                                     .foregroundStyle(.red)
                             }
@@ -611,10 +617,43 @@ struct AssignmentDetailView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
+
+                    segmentSection(for: assignment)
                 }
                 .listStyle(.insetGrouped)
                 .navigationTitle("상세 보기")
                 .navigationBarTitleDisplayMode(.inline)
+                .sheet(isPresented: $isPresentingSegmentSheet) {
+                    TaskSegmentEditorSheet(
+                        mode: editingSegment == nil ? .create : .edit,
+                        draft: $segmentDraft,
+                        parentName: assignment.title
+                    ) { draft in
+                        if let existing = editingSegment {
+                            var updated = existing
+                            updated.title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
+                            updated.dueDate = draft.dueDate
+                            updated.startDate = draft.startDate
+                            updated.hasDeadline = draft.hasDeadline
+                            updated.priority = draft.priority
+                            updated.estimatedDurationMinutes = draft.estimatedDurationMinutes
+                            data.update(segment: updated)
+                        } else {
+                            let newSegment = TaskSegment(
+                                parentType: .assignment,
+                                parentIdentifier: assignment.id,
+                                title: draft.title.trimmingCharacters(in: .whitespacesAndNewlines),
+                                dueDate: draft.dueDate,
+                                startDate: draft.startDate,
+                                hasDeadline: draft.hasDeadline,
+                                priority: draft.priority,
+                                estimatedDurationMinutes: draft.estimatedDurationMinutes
+                            )
+                            data.add(segment: newSegment)
+                        }
+                        editingSegment = nil
+                    }
+                }
             } else {
                 ContentUnavailableView(
                     "과제를 찾을 수 없어요",
@@ -668,6 +707,68 @@ struct AssignmentDetailView: View {
             return "\(hours)시간"
         }
         return "\(remaining)분"
+    }
+
+    @ViewBuilder
+    private func segmentSection(for assignment: SchoolAssignment) -> some View {
+        Section("세부 단계") {
+            if segments.isEmpty {
+                Text("세부 단계가 없습니다. 아래 버튼으로 추가하세요.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(segments) { segment in
+                    TaskSegmentRow(
+                        segment: segment,
+                        onToggleCompletion: {
+                            data.toggleSegmentCompletion(id: segment.id)
+                        },
+                        onStart: {
+                            data.startSegmentProgress(id: segment.id)
+                        },
+                        onPause: {
+                            data.pauseSegmentProgress(id: segment.id)
+                        },
+                        onFinish: {
+                            data.completeSegmentProgress(id: segment.id)
+                        },
+                        onEdit: {
+                            segmentDraft = TaskSegmentDraft(segment: segment)
+                            editingSegment = segment
+                            isPresentingSegmentSheet = true
+                        }
+                    )
+                    .swipeActions(edge: .trailing) {
+                        Button(role: .destructive) {
+                            data.removeSegment(id: segment.id)
+                        } label: {
+                            Label("삭제", systemImage: "trash")
+                        }
+                    }
+                    .swipeActions(edge: .leading, allowsFullSwipe: false) {
+                        Button {
+                            segmentDraft = TaskSegmentDraft(segment: segment)
+                            editingSegment = segment
+                            isPresentingSegmentSheet = true
+                        } label: {
+                            Label("편집", systemImage: "pencil")
+                        }
+                        .tint(.blue)
+                    }
+                }
+            }
+
+            Button {
+                segmentDraft = TaskSegmentDraft()
+                segmentDraft.dueDate = assignment.dueDate
+                segmentDraft.hasDeadline = !assignment.isAllDay
+                segmentDraft.startDate = assignment.isAllDay ? nil : assignment.dueDate
+                isPresentingSegmentSheet = true
+                editingSegment = nil
+            } label: {
+                Label("단계 추가", systemImage: "plus")
+            }
+        }
     }
 
     @ViewBuilder
