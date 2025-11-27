@@ -163,7 +163,7 @@ function registerEvents() {
     elements.calendarGrid.addEventListener('click', (event) => {
       const cell = event.target.closest('[data-date]');
       if (!cell) return;
-      const targetDate = new Date(cell.dataset.date);
+      const targetDate = parseLocalISODate(cell.dataset.date);
       if (Number.isNaN(targetDate.getTime())) return;
       setState({
         selectedDate: targetDate,
@@ -601,6 +601,13 @@ function registerEvents() {
       await respondAssistant(message);
     });
   }
+}
+
+function parseLocalISODate(value) {
+  if (!value) return new Date(NaN);
+  const parts = value.split('-').map((p) => Number(p));
+  if (parts.length < 3 || parts.some((n) => Number.isNaN(n))) return new Date(NaN);
+  return new Date(parts[0], parts[1] - 1, parts[2]);
 }
 
 async function refreshConnection() {
