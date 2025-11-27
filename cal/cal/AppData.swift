@@ -18,6 +18,7 @@ final class AppData: ObservableObject {
     private let assignmentsICSURL: URL
     private let routinesURL: URL
     private let taskSegmentsURL: URL
+    private let serverClient = ServerSyncClient()
 
     init() {
         encoder = JSONEncoder()
@@ -45,35 +46,50 @@ final class AppData: ObservableObject {
         loadAssignments()
         loadRoutines()
         loadTaskSegments()
+
+        Task {
+            await syncFromServer()
+        }
     }
 
     // MARK: - Routines
     func add(routine: RoutineItem) {
         routines.append(routine)
         persistRoutines()
+        Task { await serverClient.upsertRoutine(routine) }
     }
 
     func removeRoutines(at offsets: IndexSet) {
         routines.remove(atOffsets: offsets)
         persistRoutines()
+        Task {
+            for index in offsets {
+                if routines.indices.contains(index) {
+                    await serverClient.deleteRoutine(id: routines[index].id)
+                }
+            }
+        }
     }
 
     func removeRoutine(id: UUID) {
         guard let index = routines.firstIndex(where: { $0.id == id }) else { return }
         routines.remove(at: index)
         persistRoutines()
+        Task { await serverClient.deleteRoutine(id: id) }
     }
 
     func toggleRoutineEnabled(id: UUID) {
         guard let index = routines.firstIndex(where: { $0.id == id }) else { return }
         routines[index].isEnabled.toggle()
         persistRoutines()
+        Task { await serverClient.updateRoutine(routines[index]) }
     }
 
     func update(routine: RoutineItem) {
         guard let index = routines.firstIndex(where: { $0.id == routine.id }) else { return }
         routines[index] = routine
         persistRoutines()
+        Task { await serverClient.updateRoutine(routine) }
     }
 
     // MARK: - Task Segments
@@ -91,22 +107,32 @@ final class AppData: ObservableObject {
     func add(segment: TaskSegment) {
         taskSegments.append(segment)
         persistTaskSegments()
+        Task { await serverClient.upsertTaskSegment(segment) }
     }
 
     func update(segment: TaskSegment) {
         guard let index = taskSegments.firstIndex(where: { $0.id == segment.id }) else { return }
         taskSegments[index] = segment
         persistTaskSegments()
+        Task { await serverClient.updateTaskSegment(segment) }
     }
 
     func removeSegment(id: UUID) {
+        guard let segment = taskSegments.first(where: { $0.id == id }) else { return }
         taskSegments.removeAll { $0.id == id }
         persistTaskSegments()
+        Task { await serverClient.deleteTaskSegment(segment) }
     }
 
     func removeSegments(for parentType: TaskSegmentParent, parentIdentifier: String) {
+        let removed = taskSegments.filter { $0.parentType == parentType && $0.parentIdentifier == parentIdentifier }
         taskSegments.removeAll { $0.parentType == parentType && $0.parentIdentifier == parentIdentifier }
         persistTaskSegments()
+        Task {
+            for segment in removed {
+                await serverClient.deleteTaskSegment(segment)
+            }
+        }
     }
 
     func toggleSegmentCompletion(id: UUID) {
@@ -120,6 +146,7 @@ final class AppData: ObservableObject {
             taskSegments[index].actualEndTime = Date()
         }
         persistTaskSegments()
+        Task { await serverClient.segmentTimer(taskSegments[index], action: "complete") }
     }
 
     func startSegmentProgress(id: UUID) {
@@ -137,6 +164,7 @@ final class AppData: ObservableObject {
         segment.isCompleted = false
         taskSegments[index] = segment
         persistTaskSegments()
+        Task { await serverClient.segmentTimer(segment, action: "start") }
     }
 
     func pauseSegmentProgress(id: UUID) {
@@ -151,6 +179,7 @@ final class AppData: ObservableObject {
         segment.actualEndTime = nil
         taskSegments[index] = segment
         persistTaskSegments()
+        Task { await serverClient.segmentTimer(segment, action: "pause") }
     }
 
     func completeSegmentProgress(id: UUID) {
@@ -170,12 +199,14 @@ final class AppData: ObservableObject {
         segment.isCompleted = true
         taskSegments[index] = segment
         persistTaskSegments()
+        Task { await serverClient.segmentTimer(segment, action: "complete") }
     }
 
     func add(task: TaskItem) {
         todos.append(task)
         sortTasks()
         persistTodos()
+        Task { await serverClient.upsertTask(task) }
     }
 
     func update(task: TaskItem) {
@@ -183,6 +214,7 @@ final class AppData: ObservableObject {
         todos[index] = task
         sortTasks()
         persistTodos()
+        Task { await serverClient.updateTask(task) }
     }
 
     func removeTasks(at offsets: IndexSet) {
@@ -194,6 +226,7 @@ final class AppData: ObservableObject {
         persistTodos()
         for id in removedIDs {
             removeSegments(for: .todo, parentIdentifier: id.uuidString)
+            Task { await serverClient.deleteTask(id: id) }
         }
     }
 
@@ -202,6 +235,7 @@ final class AppData: ObservableObject {
         todos[index].isCompleted.toggle()
         sortTasks()
         persistTodos()
+        Task { await serverClient.updateTask(todos[index]) }
     }
 
     func startTaskProgress(id: UUID) {
@@ -219,6 +253,7 @@ final class AppData: ObservableObject {
         task.isCompleted = false
         todos[index] = task
         persistTodos()
+        Task { await serverClient.taskTimer(id: task.id, action: "start") }
     }
 
     func pauseTaskProgress(id: UUID) {
@@ -233,6 +268,7 @@ final class AppData: ObservableObject {
         task.actualEndTime = nil
         todos[index] = task
         persistTodos()
+        Task { await serverClient.taskTimer(id: task.id, action: "pause") }
     }
 
     func completeTaskProgress(id: UUID) {
@@ -253,6 +289,7 @@ final class AppData: ObservableObject {
         todos[index] = task
         sortTasks()
         persistTodos()
+        Task { await serverClient.taskTimer(id: task.id, action: "complete") }
     }
 
     func setTaskDuration(id: UUID, minutes: Int?) {
@@ -266,6 +303,7 @@ final class AppData: ObservableObject {
         assignments[index].isCompleted.toggle()
         sortAssignments()
         persistAssignments()
+        Task { await serverClient.updateAssignment(assignments[index]) }
     }
 
     func startAssignmentProgress(id: String) {
@@ -283,6 +321,7 @@ final class AppData: ObservableObject {
         assignment.isCompleted = false
         assignments[index] = assignment
         persistAssignments()
+        Task { await serverClient.assignmentTimer(id: assignment.id, action: "start") }
     }
 
     func pauseAssignmentProgress(id: String) {
@@ -297,6 +336,7 @@ final class AppData: ObservableObject {
         assignment.actualEndTime = nil
         assignments[index] = assignment
         persistAssignments()
+        Task { await serverClient.assignmentTimer(id: assignment.id, action: "pause") }
     }
 
     func completeAssignmentProgress(id: String) {
@@ -317,12 +357,14 @@ final class AppData: ObservableObject {
         assignments[index] = assignment
         sortAssignments()
         persistAssignments()
+        Task { await serverClient.assignmentTimer(id: assignment.id, action: "complete") }
     }
 
     func setAssignmentDuration(id: String, minutes: Int?) {
         guard let index = assignments.firstIndex(where: { $0.id == id }) else { return }
         assignments[index].estimatedDurationMinutes = minutes
         persistAssignments()
+        Task { await serverClient.updateAssignment(assignments[index]) }
     }
 
     func replaceAssignments(with newAssignments: [SchoolAssignment], syncSource: AssignmentSyncSource?, rawICSData: Data?) {
@@ -351,6 +393,11 @@ final class AppData: ObservableObject {
             lastAssignmentSync = syncSource
         }
         persistAssignments()
+        Task {
+            for assignment in assignments {
+                await serverClient.upsertAssignment(assignment)
+            }
+        }
 
         let validAssignmentIDs = Set(assignments.map(\.id))
         let originalSegmentCount = taskSegments.count
@@ -468,6 +515,21 @@ final class AppData: ObservableObject {
             #if DEBUG
             print("Failed to persist task segments: \(error)")
             #endif
+        }
+    }
+
+    // MARK: - Server Sync
+    func syncFromServer() async {
+        guard let payload = await serverClient.fetchAll() else { return }
+        await MainActor.run {
+            self.todos = payload.tasks
+            self.taskSegments = payload.taskSegments
+            self.assignments = payload.assignments
+            self.routines = payload.routines
+            self.persistTodos()
+            self.persistTaskSegments()
+            self.persistAssignments()
+            self.persistRoutines()
         }
     }
 }
