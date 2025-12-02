@@ -440,6 +440,12 @@ export function renderCountdowns({ listEl, tasks = [], taskSegments = [], assign
   const now = new Date();
   const targetDate = normalizeDate(selectedDate ?? now);
   const iso = toISODate(targetDate);
+  const assignmentSegmentsById = new Map();
+  assignmentSegments.forEach((seg) => {
+    if (!seg.assignmentId) return;
+    if (!assignmentSegmentsById.has(seg.assignmentId)) assignmentSegmentsById.set(seg.assignmentId, []);
+    assignmentSegmentsById.get(seg.assignmentId).push(seg);
+  });
   const items = [
     ...tasks
       .filter((task) => toISODate(task.due ?? task.start ?? '') === iso)
@@ -467,7 +473,8 @@ export function renderCountdowns({ listEl, tasks = [], taskSegments = [], assign
         source: 'Assignment',
         priority: assignment.priority,
         history: assignment.history ?? [],
-        isCompleted: assignment.isCompleted
+        isCompleted: assignment.isCompleted,
+        segments: assignmentSegmentsById.get(assignment.id) ?? []
       })),
     ...taskSegments
       .filter((seg) => toISODate(seg.due ?? seg.start ?? '') === iso)
@@ -519,6 +526,23 @@ export function renderCountdowns({ listEl, tasks = [], taskSegments = [], assign
 
     const li = document.createElement('li');
     li.className = 'countdown-item';
+    const segmentList =
+      item.source === 'Assignment' && item.segments?.length
+        ? `<ul class="segment-list compact">
+            ${item.segments
+              .map(
+                (seg) => `
+                  <li class="segment-row">
+                    <span>${escapeHtml(seg.title)}</span>
+                    <span class="segment-meta">${seg.estimatedDuration ? `${seg.estimatedDuration}m` : ''}${
+                      seg.due ? ` · ${escapeHtml(formatDateDisplay(seg.due))}` : ''
+                    }</span>
+                  </li>
+                `
+              )
+              .join('')}
+          </ul>`
+        : '';
     li.innerHTML = `
       <div class="countdown-title">${escapeHtml(item.title)}</div>
       <div class="countdown-meta">
@@ -544,6 +568,7 @@ export function renderCountdowns({ listEl, tasks = [], taskSegments = [], assign
                 </div>`
               : ''
       }
+      ${segmentList}
     `;
     listEl.append(li);
   });

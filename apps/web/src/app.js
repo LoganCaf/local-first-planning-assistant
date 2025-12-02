@@ -1030,6 +1030,7 @@ function buildSystemPrompt() {
     '- {"type":"todo.add","title":"Task","dueDate":"2025-12-04T18:00:00","startDate":"2025-12-04T17:00:00","priority":"high","durationMinutes":90}',
     '- {"type":"todo.toggle","identifier":"Task title or id"}',
     '- {"type":"assignment.setDuration","identifier":"Assignment title or id","durationMinutes":120}',
+    '- {"type":"assignment.addSegment","identifier":"Assignment title or id","title":"Part 1","dueDate":"2025-12-05T12:00:00","durationMinutes":60}',
     'Strict JSON rules: valid JSON only, no comments, no trailing commas, all fields quoted. If no change is needed, omit the block entirely.',
     'Date rules: treat user-provided dates/times as local; DO NOT convert to UTC; DO NOT include timezone offsets or Z. Use "YYYY-MM-DDTHH:MM:SS".',
     'Defaults: if date is implied as today, use today with a sensible time; if duration is unclear, omit durationMinutes.',
@@ -1115,6 +1116,7 @@ async function applyScheduleActions(actions = []) {
   const summaries = [];
   let touchedTasks = false;
   let touchedAssignments = false;
+  let touchedAssignmentSegments = false;
 
   for (const action of actions) {
     const type = (action.type || '').toLowerCase();
@@ -1168,6 +1170,29 @@ async function applyScheduleActions(actions = []) {
           : `⏱️ Cleared estimated duration for "${target.title}".`
       );
       touchedAssignments = true;
+    } else if (type === 'assignment.addsegment') {
+      const identifier = action.identifier || action.assignmentId || action.title;
+      const assignment = findAssignmentByIdentifier(identifier);
+      if (!assignment) {
+        summaries.push(`⚠️ Could not find assignment matching "${identifier ?? 'unknown'}".`);
+        continue;
+      }
+      const segTitle = (action.title || 'Segment').trim();
+      const due = parseAssistantDate(action.dueDate);
+      const duration = sanitizeDuration(action.durationMinutes);
+      await api.createAssignmentSegment({
+        assignmentId: assignment.id,
+        title: segTitle,
+        due,
+        estimatedDuration: duration ?? 0
+      });
+      summaries.push(
+        `🧩 Added segment "${segTitle}" for "${assignment.title}"${due ? ` (due ${due.toLocaleString()})` : ''}${
+          duration ? ` · ${duration}m` : ''
+        }.`
+      );
+      touchedAssignments = true;
+      touchedAssignmentSegments = true;
     }
   }
 
@@ -1180,6 +1205,9 @@ async function applyScheduleActions(actions = []) {
     await loadAssignments();
     await refreshSchedule();
     await refreshInsights();
+  }
+  if (touchedAssignmentSegments) {
+    await loadAssignmentSegments();
   }
 
   return summaries;
