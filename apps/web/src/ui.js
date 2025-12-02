@@ -442,48 +442,57 @@ export function renderCountdowns({ listEl, tasks = [], taskSegments = [], assign
   const iso = toISODate(targetDate);
   const items = [
     ...tasks
-      .filter((task) => toISODate(task.due ?? task.start ?? task.due) === iso && !task.isCompleted)
+      .filter((task) => toISODate(task.due ?? task.start ?? '') === iso)
       .map((task) => ({
+        id: task.id,
         title: task.title,
-        due: task.due ?? task.start ?? targetDate,
-        end: task.due ?? (task.start ? new Date(new Date(task.start).getTime() + (task.estimatedDuration ?? 60) * 60000) : null),
+        due: task.due ?? targetDate,
+        end: task.due ?? (task.start ? new Date(new Date(task.start).getTime() + (task.estimatedDuration ?? 60) * 60000) : targetDate),
         start: task.start,
         duration: task.estimatedDuration ?? 60,
         source: 'Task',
-        priority: task.priority
+        priority: task.priority,
+        history: task.history ?? []
       })),
     ...assignments
-      .filter((assignment) => toISODate(assignment.due) === iso && !assignment.isCompleted)
+      .filter((assignment) => toISODate(assignment.due) === iso)
       .map((assignment) => ({
+        id: assignment.id,
         title: assignment.title,
         due: assignment.due,
         end: assignment.end ?? assignment.due,
         start: assignment.due,
         duration: assignment.estimatedDuration ?? 60,
         source: 'Assignment',
-        priority: assignment.priority
+        priority: assignment.priority,
+        history: assignment.history ?? [],
+        isCompleted: assignment.isCompleted
       })),
     ...taskSegments
-      .filter((seg) => toISODate(seg.due ?? seg.start ?? seg.due) === iso && !seg.isCompleted)
+      .filter((seg) => toISODate(seg.due ?? seg.start ?? '') === iso)
       .map((seg) => ({
+        id: seg.id,
         title: seg.title,
         due: seg.due ?? targetDate,
         end: seg.due ?? targetDate,
         start: seg.start ?? seg.due ?? targetDate,
         duration: seg.estimatedDuration ?? 60,
         source: 'Task segment',
-        priority: seg.priority
+        priority: seg.priority,
+        history: seg.history ?? []
       })),
     ...assignmentSegments
-      .filter((seg) => toISODate(seg.due ?? seg.start ?? seg.due) === iso && !seg.isCompleted)
+      .filter((seg) => toISODate(seg.due ?? seg.start ?? '') === iso)
       .map((seg) => ({
+        id: seg.id,
         title: seg.title,
         due: seg.due ?? targetDate,
         end: seg.due ?? targetDate,
         start: seg.start ?? seg.due ?? targetDate,
         duration: seg.estimatedDuration ?? 60,
         source: 'Assignment segment',
-        priority: seg.priority
+        priority: seg.priority,
+        history: seg.history ?? []
       }))
   ].sort((a, b) => new Date(a.due) - new Date(b.due));
 
@@ -502,6 +511,10 @@ export function renderCountdowns({ listEl, tasks = [], taskSegments = [], assign
     const meta = [item.source, startText, `Due ${LONG_DAY_FORMATTER.format(endDate)}`]
       .filter(Boolean)
       .join(' • ');
+    const elapsedText = renderTaskTimerLabel({ history: item.history ?? [] });
+    const isAssignment = item.source === 'Assignment';
+    const isTask = item.source === 'Task';
+    const completedBadge = item.isCompleted ? '<span class="status-pill done">Done</span>' : '';
 
     const li = document.createElement('li');
     li.className = 'countdown-item';
@@ -510,19 +523,40 @@ export function renderCountdowns({ listEl, tasks = [], taskSegments = [], assign
       <div class="countdown-meta">
         <span>${escapeHtml(meta)}</span>
         <span>Est. ${item.duration}m</span>
+        ${completedBadge}
       </div>
+      <div class="countdown-remaining">Elapsed ${escapeHtml(elapsedText)}</div>
       <div class="countdown-remaining">${escapeHtml(remainingText)}</div>
+      ${
+        isAssignment
+          ? `<div class="task-actions">
+              <button type="button" class="ghost-button" data-action="start-assignment" data-assignment-id="${item.id ?? ''}">Start</button>
+              <button type="button" class="ghost-button" data-action="pause-assignment" data-assignment-id="${item.id ?? ''}">Pause</button>
+              <button type="button" class="ghost-button" data-action="finish-assignment" data-assignment-id="${item.id ?? ''}">Done</button>
+            </div>`
+          : isTask
+              ? `<div class="task-actions">
+                  <button type="button" class="ghost-button" data-action="start-task" data-task-id="${item.id ?? ''}">Start</button>
+                  <button type="button" class="ghost-button" data-action="pause-task" data-task-id="${item.id ?? ''}">Pause</button>
+                  <button type="button" class="ghost-button" data-action="finish-task" data-task-id="${item.id ?? ''}">Done</button>
+                </div>`
+              : ''
+      }
     `;
     listEl.append(li);
   });
 }
 
 function formatRemaining(ms) {
-  const minutes = Math.max(0, Math.floor(ms / 60000));
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  if (hours > 0) return `${hours}h ${mins}m left`;
-  return `${mins}m left`;
+  const seconds = Math.max(0, Math.floor(ms / 1000));
+  const hours = Math.floor(seconds / 3600);
+  const minutes = Math.floor((seconds % 3600) / 60);
+  const secs = seconds % 60;
+  const parts = [];
+  if (hours > 0) parts.push(`${hours}h`);
+  parts.push(`${minutes}m`);
+  parts.push(`${secs}s`);
+  return `${parts.join(' ')} left`;
 }
 
 function handleAgendaClick(event) {
@@ -810,14 +844,16 @@ function renderTaskTimerLabel(task) {
       elapsedMs += Math.max(0, end - start);
     }
   });
-  const totalMinutes = Math.floor(elapsedMs / 60000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
+  const totalSeconds = Math.floor(elapsedMs / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
   const active = history.some((h) => h.startedAt && !h.stoppedAt);
   const parts = [];
   if (hours > 0) parts.push(`${hours}h`);
   parts.push(`${minutes}m`);
-  return `${parts.join(' ')} ${active ? 'elapsed (running)' : 'elapsed'}`;
+  parts.push(`${seconds}s`);
+  return parts.join(' ') + (active ? ' (running)' : '');
 }
 
 function toInputValue(dateValue, allDay = false) {

@@ -9,7 +9,7 @@
         "school"
       ],
       "priority": 3,
-      "due": "2025-12-02T07:02:00.000Z",
+      "due": "2025-12-03T04:31:00.000Z",
       "start": null,
       "hasDeadline": true,
       "hardDeadline": true,
@@ -21,14 +21,34 @@
       "history": [
         {
           "startedAt": "2025-12-02T03:03:51.430Z",
-          "stoppedAt": null,
+          "stoppedAt": "2025-12-02T04:00:55.875Z",
+          "note": null
+        },
+        {
+          "startedAt": "2025-12-02T04:01:01.823Z",
+          "stoppedAt": "2025-12-02T04:26:16.568Z",
+          "note": null
+        },
+        {
+          "startedAt": "2025-12-02T04:30:47.169Z",
+          "stoppedAt": "2025-12-02T04:30:49.579Z",
+          "note": null
+        },
+        {
+          "startedAt": "2025-12-02T04:31:02.700Z",
+          "stoppedAt": "2025-12-02T04:31:16.562Z",
+          "note": null
+        },
+        {
+          "startedAt": "2025-12-02T04:31:34.097Z",
+          "stoppedAt": "2025-12-02T04:31:37.677Z",
           "note": null
         }
       ],
-      "isCompleted": false,
+      "isCompleted": true,
       "categoryWeights": {},
       "createdAt": "2025-12-02T03:03:36.605Z",
-      "updatedAt": "2025-12-02T03:03:51.430Z"
+      "updatedAt": "2025-12-02T04:31:41.567Z"
     }
   ],
   "routines": [],
@@ -38,13 +58,13 @@
     {
       "taskId": "minzucgt-07f193",
       "title": "sodjs",
-      "start": "2025-12-02T03:13:00.326Z",
-      "end": "2025-12-02T04:13:00.326Z",
+      "start": "2025-12-01T13:00:00.000Z",
+      "end": "2025-12-01T14:00:00.000Z",
       "location": null,
       "metadata": {
         "priority": 3,
-        "energyBand": "evening",
-        "due": "2025-12-02T07:02:00.000Z",
+        "energyBand": "morning",
+        "due": "2025-12-03T04:31:00.000Z",
         "goalId": null
       }
     }
@@ -688,16 +708,26 @@
       "allDay": true,
       "hasDeadline": true,
       "estimatedDuration": 0,
-      "isCompleted": false,
+      "isCompleted": true,
       "history": [
         {
           "startedAt": "2025-12-02T02:57:44.630Z",
-          "stoppedAt": null,
+          "stoppedAt": "2025-12-02T03:56:59.755Z",
+          "note": null
+        },
+        {
+          "startedAt": "2025-12-02T03:57:01.901Z",
+          "stoppedAt": "2025-12-02T03:59:38.467Z",
+          "note": null
+        },
+        {
+          "startedAt": "2025-12-02T04:01:29.055Z",
+          "stoppedAt": "2025-12-02T04:01:34.688Z",
           "note": null
         }
       ],
       "createdAt": "2025-12-02T02:37:50.239Z",
-      "updatedAt": "2025-12-02T02:57:55.759Z",
+      "updatedAt": "2025-12-02T04:26:22.748Z",
       "source": "https://elearning.mines.edu/feeds/calendars/user_Amn7tDO3I65L17MwbcItRmNxJId33cwsrbvEYGCF.ics"
     },
     {
@@ -713,10 +743,10 @@
       "allDay": true,
       "hasDeadline": true,
       "estimatedDuration": 0,
-      "isCompleted": false,
+      "isCompleted": true,
       "history": [],
       "createdAt": "2025-12-02T02:37:50.241Z",
-      "updatedAt": "2025-12-02T02:37:50.241Z",
+      "updatedAt": "2025-12-02T04:02:04.908Z",
       "source": "https://elearning.mines.edu/feeds/calendars/user_Amn7tDO3I65L17MwbcItRmNxJId33cwsrbvEYGCF.ics"
     },
     {
@@ -732,16 +762,16 @@
       "allDay": true,
       "hasDeadline": true,
       "estimatedDuration": 0,
-      "isCompleted": false,
+      "isCompleted": true,
       "history": [
         {
           "startedAt": "2025-12-02T02:57:20.458Z",
-          "stoppedAt": null,
+          "stoppedAt": "2025-12-02T03:59:18.310Z",
           "note": null
         }
       ],
       "createdAt": "2025-12-02T02:37:50.243Z",
-      "updatedAt": "2025-12-02T02:57:20.458Z",
+      "updatedAt": "2025-12-02T04:02:05.574Z",
       "source": "https://elearning.mines.edu/feeds/calendars/user_Amn7tDO3I65L17MwbcItRmNxJId33cwsrbvEYGCF.ics"
     },
     {
@@ -757,10 +787,16 @@
       "allDay": true,
       "hasDeadline": true,
       "estimatedDuration": 0,
-      "isCompleted": false,
-      "history": [],
+      "isCompleted": true,
+      "history": [
+        {
+          "startedAt": "2025-12-02T04:01:51.083Z",
+          "stoppedAt": "2025-12-02T04:01:53.645Z",
+          "note": null
+        }
+      ],
       "createdAt": "2025-12-02T02:37:50.245Z",
-      "updatedAt": "2025-12-02T02:37:50.245Z",
+      "updatedAt": "2025-12-02T04:02:06.166Z",
       "source": "https://elearning.mines.edu/feeds/calendars/user_Amn7tDO3I65L17MwbcItRmNxJId33cwsrbvEYGCF.ics"
     },
     {

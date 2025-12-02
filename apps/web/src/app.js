@@ -47,6 +47,8 @@ const elements = {
   taskModalCancel: document.getElementById('task-modal-cancel')
 };
 
+let countdownIntervalId;
+
 const views = Array.from(document.querySelectorAll('[data-view]'));
 const tabButtons = Array.from(document.querySelectorAll('[data-tab]'));
 
@@ -101,6 +103,7 @@ async function bootstrap() {
   await loadRoutines();
   await refreshSchedule();
   await refreshInsights();
+  startCountdownTicker();
 }
 
 function registerEvents() {
@@ -362,7 +365,45 @@ function registerEvents() {
   }
 
   if (elements.agendaList) {
-    elements.agendaList.addEventListener('click', (event) => {
+    elements.agendaList.addEventListener('click', async (event) => {
+      const startAssign = event.target.closest('[data-action="start-assignment"]');
+      const pauseAssign = event.target.closest('[data-action="pause-assignment"]');
+      const finishAssign = event.target.closest('[data-action="finish-assignment"]');
+      const startTask = event.target.closest('[data-action="start-task"]');
+      const pauseTask = event.target.closest('[data-action="pause-task"]');
+      const finishTask = event.target.closest('[data-action="finish-task"]');
+
+      if (startAssign) {
+        await api.updateAssignmentTimer(startAssign.dataset.assignmentId, 'start');
+        await loadAssignments();
+        return;
+      }
+      if (pauseAssign) {
+        await api.updateAssignmentTimer(pauseAssign.dataset.assignmentId, 'pause');
+        await loadAssignments();
+        return;
+      }
+      if (finishAssign) {
+        await api.updateAssignmentTimer(finishAssign.dataset.assignmentId, 'complete');
+        await loadAssignments();
+        return;
+      }
+      if (startTask) {
+        await api.updateTaskTimer(startTask.dataset.taskId, 'start');
+        await loadTasks();
+        return;
+      }
+      if (pauseTask) {
+        await api.updateTaskTimer(pauseTask.dataset.taskId, 'pause');
+        await loadTasks();
+        return;
+      }
+      if (finishTask) {
+        await api.updateTaskTimer(finishTask.dataset.taskId, 'complete');
+        await loadTasks();
+        return;
+      }
+
       const li = event.target.closest('[data-task-id]');
       if (!li) return;
       const task = state.tasks.find((t) => t.id === li.dataset.taskId);
@@ -663,6 +704,22 @@ function registerEvents() {
       }
     });
   }
+}
+
+function startCountdownTicker() {
+  if (countdownIntervalId) {
+    clearInterval(countdownIntervalId);
+  }
+  countdownIntervalId = setInterval(() => {
+    renderCountdowns({
+      listEl: elements.agendaList,
+      tasks: state.tasks,
+      taskSegments: state.taskSegments,
+      assignments: state.assignments,
+      assignmentSegments: state.assignmentSegments,
+      selectedDate: state.selectedDate
+    });
+  }, 1000);
 }
 
 function parseLocalISODate(value) {
