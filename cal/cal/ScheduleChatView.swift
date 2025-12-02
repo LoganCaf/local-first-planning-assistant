@@ -321,6 +321,10 @@ private struct ScheduleAssistant {
             let role: ChatRequestMessage.Role = message.role == .assistant ? .assistant : .user
             messages.append(ChatRequestMessage(role: role, content: message.text))
         }
+        if let lastUser = limited.last(where: { $0.role == .user }), isWorkTodayPrompt(lastUser.text) {
+            let upcomingContext = upcomingItemsContext(data: data, calendar: calendar, locale: locale)
+            messages.append(ChatRequestMessage(role: .user, content: upcomingContext))
+        }
         return messages
     }
 
@@ -425,6 +429,48 @@ private struct ScheduleAssistant {
     [Routines]
     \(routines)
     """
+    }
+
+    private func isWorkTodayPrompt(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        return lower.contains("work on today") ||
+        lower.contains("what should i work on") ||
+        lower.contains("focus on today") ||
+        lower.contains("what to do today") ||
+        lower.contains("오늘 뭐")
+    }
+
+    private func upcomingItemsContext(data: AppData, calendar: Calendar, locale: Locale) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = locale
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+
+        let startOfToday = calendar.startOfDay(for: Date())
+
+        let todoLines = data.todos
+            .filter { calendar.startOfDay(for: $0.dueDate) >= startOfToday }
+            .sorted { $0.dueDate < $1.dueDate }
+            .prefix(10)
+            .map { todo in
+                "Todo: \(todo.title) — Due \(formatter.string(from: todo.dueDate)) — Priority \(todo.priority.displayName) — Duration \((todo.estimatedDurationMinutes ?? 0))m"
+            }
+
+        let assignmentLines = data.assignments
+            .filter { calendar.startOfDay(for: $0.dueDate) >= startOfToday }
+            .sorted { $0.dueDate < $1.dueDate }
+            .prefix(10)
+            .map { assignment in
+                let end = assignment.displayEndDate(using: calendar) ?? assignment.dueDate
+                return "Assignment: \(assignment.title) — Due \(formatter.string(from: end)) — Duration \((assignment.estimatedDurationMinutes ?? 0))m"
+            }
+
+        let lines = todoLines + assignmentLines
+        if lines.isEmpty {
+            return "Upcoming items: none found."
+        }
+        return "Upcoming items for today and later:\n" + lines.joined(separator: "\n")
     }
 
     private func extractActionEnvelope(from reply: String) -> ActionExtractionResult? {
