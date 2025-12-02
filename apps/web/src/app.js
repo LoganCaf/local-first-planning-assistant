@@ -25,6 +25,7 @@ const elements = {
   calendarPrev: document.getElementById('calendar-prev'),
   calendarNext: document.getElementById('calendar-next'),
   calendarToday: document.getElementById('calendar-today'),
+  themeToggle: document.getElementById('theme-toggle'),
   agendaTitle: document.getElementById('agenda-title'),
   agendaList: document.getElementById('agenda-list'),
   regeneratePlan: document.getElementById('regenerate-plan'),
@@ -62,6 +63,7 @@ const elements = {
 
 const OPENAI_KEY_STORAGE = 'openai_api_key';
 const AI_PLAN_STORAGE = 'ai_plan_days_cache';
+const THEME_STORAGE = 'llm_theme';
 let openAIApiKey = loadStoredApiKey();
 
 let countdownIntervalId;
@@ -131,6 +133,7 @@ registerEvents();
 
 async function bootstrap() {
   syncOpenAIKeyUI();
+  restoreTheme();
   restorePlanFromStorage();
   await refreshConnection();
   await loadTasks();
@@ -199,6 +202,13 @@ function registerEvents() {
     elements.calendarToday.addEventListener('click', () => {
       const today = new Date();
       setState({ selectedDate: today, calendarMonth: new Date(today.getFullYear(), today.getMonth(), 1) });
+    });
+  }
+
+  if (elements.themeToggle) {
+    elements.themeToggle.addEventListener('click', () => {
+      const nextTheme = document.body.classList.contains('theme-light') ? 'dark' : 'light';
+      applyTheme(nextTheme);
     });
   }
 
@@ -1528,6 +1538,22 @@ function clearSavedPlan() {
   } catch (error) {
     console.error('Failed to clear plan', error);
   }
+}
+
+function applyTheme(theme) {
+  const isLight = theme === 'light';
+  document.body.classList.toggle('theme-light', isLight);
+  localStorage.setItem(THEME_STORAGE, isLight ? 'light' : 'dark');
+  if (elements.themeToggle) {
+    elements.themeToggle.textContent = isLight ? 'Dark mode' : 'Light mode';
+  }
+}
+
+function restoreTheme() {
+  const stored = localStorage.getItem(THEME_STORAGE);
+  const prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+  const theme = stored || (prefersLight ? 'light' : 'dark');
+  applyTheme(theme);
 }
 
 function buildPlanAudit(planDays = []) {
