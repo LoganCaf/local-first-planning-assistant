@@ -36,6 +36,28 @@
             </div>
             <ul id="agenda-list" class="countdown-list"></ul>
           </div>
+          <div class="ai-plan-panel glass">
+            <div class="agenda-header">
+              <div>
+                <h3>AI plan calendar</h3>
+                <p id="ai-plan-status" class="hint" aria-live="polite"></p>
+              </div>
+              <button id="ai-plan-generate" class="primary-button" type="button">AI가 일정 만들기</button>
+            </div>
+            <div class="ai-plan-body">
+              <div class="ai-plan-left">
+                <div id="ai-plan-grid" class="calendar-grid ai-grid" aria-label="AI generated calendar"></div>
+              </div>
+              <div class="ai-plan-side">
+                <div class="ai-plan-side-header">
+                  <h3>AI countdown</h3>
+                  <p class="hint">선택한 날짜의 AI 일정</p>
+                </div>
+                <h4 id="ai-plan-day-heading">선택한 날짜</h4>
+                <ul id="ai-plan-list" class="plan-list"></ul>
+              </div>
+            </div>
+          </div>
         </section>
 
         <section data-view="tasks" id="tasks-view" class="view view--tasks">

@@ -139,6 +139,10 @@ a {
   display: grid;
 }
 
+.view--calendar.active > .ai-plan-panel {
+  grid-column: 1 / -1;
+}
+
 .view--calendar.active > .insights-panel {
   grid-area: insights;
 }
@@ -185,6 +189,75 @@ a {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 0.45rem;
+}
+
+.ai-plan-panel {
+  display: grid;
+  gap: 1rem;
+  align-self: start;
+}
+
+.ai-plan-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(280px, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.ai-plan-panel .calendar-grid {
+  max-width: 900px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.ai-plan-side {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 1rem;
+  padding: 1rem;
+  height: 100%;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.ai-plan-side-header {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.ai-plan-side h4 {
+  margin: 0 0 0.35rem;
+}
+
+.ai-grid .calendar-day {
+  aspect-ratio: 4 / 3;
+}
+
+.plan-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.plan-list li {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 1rem;
+  padding: 0.75rem 0.9rem;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.plan-list .plan-date {
+  font-weight: 700;
+  margin-bottom: 0.35rem;
+}
+
+.plan-list .plan-item {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-secondary);
+  font-size: 0.95rem;
 }
 
 .calendar-day {

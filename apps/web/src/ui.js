@@ -905,3 +905,71 @@ export function renderActiveTracking({ listEl, tasks = [], taskSegments = [], as
     listEl.append(li);
   });
 }
+
+export function renderPlanCalendar({ gridEl, calendarMonth, selectedDate, planDays = [] }) {
+  if (!gridEl) return;
+  const monthDate = normalizeDate(calendarMonth);
+  const selected = normalizeDate(selectedDate);
+  const matrix = buildMonthMatrix(monthDate);
+  const markers = new Map();
+  planDays.forEach((day) => {
+    const iso = toISODate(day.date);
+    if (!iso) return;
+    const count = Array.isArray(day.items) ? day.items.length : 0;
+    if (count > 0) {
+      markers.set(iso, (markers.get(iso) ?? 0) + count);
+    }
+  });
+  const selectedIso = toISODate(selected);
+  const todayIso = toISODate(new Date());
+
+  gridEl.innerHTML = '';
+  matrix.forEach(({ date, isCurrentMonth }) => {
+    const iso = toISODate(date);
+    const cell = document.createElement('div');
+    cell.className = 'calendar-day';
+    cell.dataset.date = iso;
+    if (!isCurrentMonth) cell.classList.add('is-outside');
+    if (iso === todayIso) cell.classList.add('is-today');
+    if (iso === selectedIso) cell.classList.add('is-selected');
+    if (markers.has(iso)) cell.classList.add('has-events');
+
+    const number = document.createElement('span');
+    number.className = 'calendar-day-number';
+    number.textContent = DAY_NUMBER_FORMATTER.format(date);
+    cell.append(number);
+
+    if (markers.has(iso)) {
+      const dot = document.createElement('span');
+      dot.className = 'calendar-dot';
+      dot.dataset.count = String(markers.get(iso));
+      cell.append(dot);
+    }
+    gridEl.append(cell);
+  });
+}
+
+export function renderPlanList(listEl, planDays = [], selectedDate) {
+  if (!listEl) return;
+  listEl.innerHTML = '';
+  if (!planDays.length) {
+    listEl.innerHTML = '<li class="empty-state">AI 계획이 아직 없습니다.</li>';
+    return;
+  }
+  const targetIso = toISODate(selectedDate ?? new Date());
+  const match = planDays.find((day) => toISODate(day.date) === targetIso);
+  const displayDay = match ?? planDays[0];
+  const items = (displayDay.items ?? []).map((item) => {
+    const duration = item.minutes ? `${item.minutes}m` : '';
+    const source = item.source ? item.source : '';
+    return `<div class="plan-item"><span>${escapeHtml(item.title ?? '')}</span><span>${escapeHtml(
+      [source, duration].filter(Boolean).join(' • ')
+    )}</span></div>`;
+  });
+  const li = document.createElement('li');
+  li.innerHTML = `
+    <div class="plan-date">${escapeHtml(formatDateDisplay(displayDay.date))}</div>
+    ${items.join('') || '<div class="muted">No items for this day.</div>'}
+  `;
+  listEl.append(li);
+}

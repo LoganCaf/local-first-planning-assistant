@@ -16,7 +16,10 @@ export const state = {
   activeTab: 'calendar',
   taskFilter: 'all',
   selectedDate: now,
-  calendarMonth: new Date(now.getFullYear(), now.getMonth(), 1)
+  calendarMonth: new Date(now.getFullYear(), now.getMonth(), 1),
+  aiPlanDays: [],
+  aiPlanLoading: false,
+  aiPlanSelectedDate: now
 };
 
 const listeners = new Set();
