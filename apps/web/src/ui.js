@@ -908,11 +908,16 @@ export function renderActiveTracking({ listEl, tasks = [], taskSegments = [], as
 
 export function renderPlanCalendar({ gridEl, calendarMonth, selectedDate, planDays = [] }) {
   if (!gridEl) return;
+  const today = new Date();
+  const todayIso = toISODate(today);
   const monthDate = normalizeDate(calendarMonth);
-  const selected = normalizeDate(selectedDate);
+  const selectedSafe =
+    selectedDate && toISODate(selectedDate) < todayIso ? today : normalizeDate(selectedDate);
   const matrix = buildMonthMatrix(monthDate);
   const markers = new Map();
-  planDays.forEach((day) => {
+  planDays
+    .filter((day) => toISODate(day.date) >= todayIso)
+    .forEach((day) => {
     const iso = toISODate(day.date);
     if (!iso) return;
     const count = Array.isArray(day.items) ? day.items.length : 0;
@@ -920,8 +925,7 @@ export function renderPlanCalendar({ gridEl, calendarMonth, selectedDate, planDa
       markers.set(iso, (markers.get(iso) ?? 0) + count);
     }
   });
-  const selectedIso = toISODate(selected);
-  const todayIso = toISODate(new Date());
+  const selectedIso = toISODate(selectedSafe);
 
   gridEl.innerHTML = '';
   matrix.forEach(({ date, isCurrentMonth }) => {
@@ -949,16 +953,22 @@ export function renderPlanCalendar({ gridEl, calendarMonth, selectedDate, planDa
   });
 }
 
-export function renderPlanList(listEl, planDays = [], selectedDate) {
+export function renderPlanList(listEl, planDays = [], selectedDate, headingEl) {
   if (!listEl) return;
   listEl.innerHTML = '';
-  if (!planDays.length) {
+  const todayIso = toISODate(new Date());
+  const filtered = planDays.filter((day) => toISODate(day.date) >= todayIso);
+  if (!filtered.length) {
     listEl.innerHTML = '<li class="empty-state">AI 계획이 아직 없습니다.</li>';
+    if (headingEl) headingEl.textContent = '선택한 날짜';
     return;
   }
-  const targetIso = toISODate(selectedDate ?? new Date());
-  const match = planDays.find((day) => toISODate(day.date) === targetIso);
-  const displayDay = match ?? planDays[0];
+  const safeSelected =
+    selectedDate && toISODate(selectedDate) >= todayIso ? selectedDate : new Date();
+  const targetIso = toISODate(safeSelected ?? new Date());
+  const match = filtered.find((day) => toISODate(day.date) === targetIso);
+  const displayDay = match ?? filtered[0];
+  if (headingEl) headingEl.textContent = formatDateDisplay(displayDay.date);
   const items = (displayDay.items ?? []).map((item) => {
     const duration = item.minutes ? `${item.minutes}m` : '';
     const source = item.source ? item.source : '';

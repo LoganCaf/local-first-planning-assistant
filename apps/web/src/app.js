@@ -111,11 +111,15 @@ subscribe((snapshot) => {
   });
   renderPlanList(elements.aiPlanList, snapshot.aiPlanDays, snapshot.aiPlanSelectedDate, elements.aiPlanHeading);
   if (elements.aiPlanStatus) {
-    elements.aiPlanStatus.textContent = snapshot.aiPlanLoading
+    const countLabel = ` · 오늘 이후 과제 ${snapshot.upcomingAssignmentCount ?? 0}개`;
+    const audit = snapshot.aiPlanAudit ?? { missingCount: 0, assignmentDates: [] };
+    const missingLabel = audit.missingCount > 0 ? ` · 누락 ${audit.missingCount}개` : ' · 누락 없음';
+    const baseStatus = snapshot.aiPlanLoading
       ? 'AI가 계획을 생성하는 중입니다...'
       : snapshot.aiPlanDays.length
         ? 'AI가 제안한 일정이에요.'
         : 'AI 계획이 없습니다. 버튼을 눌러 생성해 보세요.';
+    elements.aiPlanStatus.textContent = `${baseStatus}${countLabel}${missingLabel}`;
   }
 });
 
@@ -213,6 +217,11 @@ function registerEvents() {
       if (!cell) return;
       const targetDate = parseLocalISODate(cell.dataset.date);
       if (Number.isNaN(targetDate.getTime())) return;
+      const today = new Date();
+      if (targetDate < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
+        setState({ aiPlanSelectedDate: today });
+        return;
+      }
       setState({ aiPlanSelectedDate: targetDate });
     });
   }
@@ -796,7 +805,12 @@ async function loadTaskSegments() {
 
 async function loadAssignments() {
   const payload = await api.listAssignments().catch(() => ({ assignments: [], assignmentSync: null }));
-  setState({ assignments: payload.assignments ?? [], assignmentSync: payload.assignmentSync ?? null });
+  const assignments = payload.assignments ?? [];
+  setState({
+    assignments,
+    assignmentSync: payload.assignmentSync ?? null,
+    upcomingAssignmentCount: countUpcomingAssignments(assignments)
+  });
 }
 
 async function loadAssignmentSegments() {
@@ -1015,8 +1029,8 @@ function buildScheduleSnapshot() {
     .slice(0, maxItems)
     .map((task, idx) => {
       const due = task.due ? new Date(task.due) : null;
-      const dueLabel = due ? due.toISOString() : 'none';
-      const startLabel = task.start ? new Date(task.start).toISOString() : '';
+      const dueLabel = due ? formatLocalDateTime(due) : 'none';
+      const startLabel = task.start ? formatLocalDateTime(task.start) : '';
       const duration = task.estimatedDuration ?? 0;
       return `${idx + 1}. ${task.isCompleted ? '✅' : '⏳'} ${task.title} · due ${dueLabel}${
         startLabel ? ` · start ${startLabel}` : ''
@@ -1027,7 +1041,7 @@ function buildScheduleSnapshot() {
   const assignments = state.assignments
     .slice(0, maxItems)
     .map((assignment, idx) => {
-      const due = assignment.due ? new Date(assignment.due).toISOString() : 'none';
+      const due = assignment.due ? formatLocalDateTime(assignment.due) : 'none';
       return `${idx + 1}. ${assignment.isCompleted ? '✅' : '📚'} ${assignment.title} · due ${due}${
         assignment.estimatedDuration ? ` · est ${assignment.estimatedDuration}m` : ''
       }`;
@@ -1056,7 +1070,7 @@ async function sendOpenAIChat(latestMessage, apiKey) {
   }
 
   const payload = {
-    model: 'gpt-4o-mini',
+    model: 'gpt-5.1',
     temperature: 0.3,
     messages
   };
@@ -1241,12 +1255,20 @@ function findAssignmentByIdentifier(identifier) {
 }
 
 async function generateAIPlan() {
+  const upcomingAssignments = countUpcomingAssignments(state.assignments);
+  setState({ upcomingAssignmentCount: upcomingAssignments });
   const key = openAIApiKey.trim();
   if (!key) {
-    const planDays = rebalancePlanDays(buildLocalPlan());
-    setState({ aiPlanDays: planDays, aiPlanLoading: false });
+    const planDays = balancePlanLoad(
+      ensureAllItemsScheduled(alignAssignmentsToDue(rebalancePlanDays(buildLocalPlan())))
+    );
+    const audit = buildPlanAudit(planDays);
+    const total = countPlanItems(planDays);
+    setState({ aiPlanDays: planDays, aiPlanLoading: false, aiPlanAudit: audit });
     if (elements.aiPlanStatus) {
-      elements.aiPlanStatus.textContent = 'OpenAI 키가 없어 로컬 계획을 생성했습니다.';
+      elements.aiPlanStatus.textContent = total
+        ? `OpenAI 키가 없어 로컬로 ${total}개 일정을 배치했습니다.`
+        : 'OpenAI 키가 없어 로컬 계획을 생성했지만 일정이 없습니다.';
     }
     return;
   }
@@ -1254,17 +1276,29 @@ async function generateAIPlan() {
   try {
     const prompt = buildAIPlanPrompt();
     const content = await requestAIPlan(prompt, key);
-    const planDays = rebalancePlanDays(parsePlanCalendar(content));
-    setState({ aiPlanDays: planDays });
+    const planDays = balancePlanLoad(
+      ensureAllItemsScheduled(alignAssignmentsToDue(rebalancePlanDays(parsePlanCalendar(content))))
+    );
+    const audit = buildPlanAudit(planDays);
+    const total = countPlanItems(planDays);
+    setState({ aiPlanDays: planDays, aiPlanAudit: audit });
     if (elements.aiPlanStatus) {
-      elements.aiPlanStatus.textContent = 'AI가 제안한 일정이에요.';
+      elements.aiPlanStatus.textContent = total
+        ? `AI가 ${total}개 일정을 배치했습니다.`
+        : 'AI가 제안한 일정이 비어 있습니다.';
     }
   } catch (error) {
     console.error(error);
-    const planDays = rebalancePlanDays(buildLocalPlan());
-    setState({ aiPlanDays: planDays });
+    const planDays = balancePlanLoad(
+      ensureAllItemsScheduled(alignAssignmentsToDue(rebalancePlanDays(buildLocalPlan())))
+    );
+    const audit = buildPlanAudit(planDays);
+    const total = countPlanItems(planDays);
+    setState({ aiPlanDays: planDays, aiPlanAudit: audit });
     if (elements.aiPlanStatus) {
-      elements.aiPlanStatus.textContent = 'AI 호출 실패로 로컬 계획을 생성했습니다.';
+      elements.aiPlanStatus.textContent = total
+        ? `AI 호출 실패로 로컬로 ${total}개 일정을 배치했습니다.`
+        : 'AI 호출 실패로 로컬 계획을 생성했지만 일정이 없습니다.';
     }
   } finally {
     setState({ aiPlanLoading: false });
@@ -1273,21 +1307,21 @@ async function generateAIPlan() {
 
 function buildAIPlanPrompt() {
   const today = new Date();
-  const todayIso = today.toISOString().slice(0, 10);
+  const todayIso = toISODateLocal(today);
   const taskLines = state.tasks
-    .filter((t) => !t.isCompleted)
+    .filter((t) => !t.isCompleted && isTodayOrFuture(t.due))
     .map((t) => {
-      const due = t.due ? new Date(t.due).toISOString().slice(0, 19) : '';
-      const start = t.start ? new Date(t.start).toISOString().slice(0, 19) : '';
+      const due = formatLocalDateTime(t.due);
+      const start = formatLocalDateTime(t.start);
       const minutes = t.estimatedDuration ?? 0;
       return `- Task: "${t.title}" | due:${due || 'none'} | start:${start || 'none'} | priority:${t.priority ?? 3} | minutes:${minutes}`;
     })
     .join('\n');
 
   const assignmentLines = state.assignments
-    .filter((a) => !a.isCompleted)
+    .filter((a) => !a.isCompleted && isTodayOrFuture(a.due))
     .map((a) => {
-      const due = a.due ? new Date(a.due).toISOString().slice(0, 19) : '';
+      const due = formatLocalDateTime(a.due);
       const minutes = a.estimatedDuration ?? 0;
       return `- Assignment: "${a.title}" | due:${due || 'none'} | minutes:${minutes}`;
     })
@@ -1301,8 +1335,8 @@ function buildAIPlanPrompt() {
     '- Treat all dates/times as local. Do NOT include timezone suffixes or Z.',
     `- The earliest date you may schedule is ${todayIso}; never place items before today.`,
     '- Spread work across every day from today through the latest deadline; avoid leaving gaps when possible.',
-    '- Plan each task/assignment as its own item; do not bunch everything onto one early day.',
-    '- Spread work evenly with a soft limit of 1-2 items per day unless the deadline is urgent.',
+    '- Plan each task/assignment as its own item. Multiple items on the same day are allowed when appropriate, especially near deadlines.',
+    '- Spread work sensibly but do not cap items per day; prioritise proximity to deadlines over strict evenness.',
     '- Keep items close to their deadlines but still before due dates.',
     '- If duration is unknown, omit minutes.',
     '- Keep titles concise and use original task/assignment names when possible.',
@@ -1311,7 +1345,7 @@ function buildAIPlanPrompt() {
   ].join('\n');
 
   const user = [
-    `Today: ${today.toISOString().slice(0, 10)}.`,
+    `Today: ${todayIso}.`,
     'Plan upcoming tasks and assignments by date.',
     'Tasks:',
     taskLines || '- none',
@@ -1335,7 +1369,7 @@ async function requestAIPlan(prompt, apiKey) {
       Authorization: `Bearer ${apiKey}`
     },
     body: JSON.stringify({
-      model: 'gpt-4o-mini',
+      model: 'gpt-5.1',
       temperature: 0.2,
       messages,
       max_tokens: 800
@@ -1391,15 +1425,101 @@ function toISODateLocal(value) {
   return `${year}-${month}-${day}`;
 }
 
+function isTodayOrFuture(dateValue) {
+  if (!dateValue) return true;
+  const iso = toISODateLocal(dateValue);
+  if (!iso) return false;
+  const todayIso = toISODateLocal(new Date());
+  return iso >= todayIso;
+}
+
+function countUpcomingAssignments(assignments = []) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return assignments.filter((a) => {
+    if (!a || a.isCompleted) return false;
+    if (!a.due) return false;
+    const due = new Date(a.due);
+    if (Number.isNaN(due.getTime())) return false;
+    return due >= today;
+  }).length;
+}
+
+function buildPlanAudit(planDays = []) {
+  const pending = collectPendingItems();
+  const remaining = new Map();
+  pending.forEach((item) => {
+    const key = makeKeyWithMinutes(item);
+    remaining.set(key, (remaining.get(key) ?? 0) + 1);
+  });
+
+  planDays.forEach((day) => {
+    (day.items ?? []).forEach((item) => {
+      const key = makeKeyWithMinutes(item);
+      if (remaining.has(key)) {
+        const next = remaining.get(key) - 1;
+        if (next <= 0) remaining.delete(key);
+        else remaining.set(key, next);
+      }
+    });
+  });
+
+  const assignmentDates = [];
+  const assignmentTitleSet = new Set(
+    state.assignments.filter((a) => !a.isCompleted).map((a) => (a.title || '').toLowerCase())
+  );
+  planDays.forEach((day) => {
+    const iso = toISODateLocal(day.date);
+    (day.items ?? [])
+      .filter((item) => {
+        const source = (item.source ?? '').toLowerCase();
+        if (source === 'assignment') return true;
+        const title = (item.title || '').toLowerCase();
+        return assignmentTitleSet.has(title);
+      })
+      .forEach((item) => {
+        assignmentDates.push({
+          title: item.title ?? 'Assignment',
+          date: iso
+        });
+      });
+  });
+
+  const missingItems = [];
+  remaining.forEach((count, key) => {
+    const match = pending.find((p) => makeKeyWithMinutes(p) === key);
+    if (match) {
+      for (let i = 0; i < count; i += 1) {
+        missingItems.push(match.title);
+      }
+    }
+  });
+
+  return {
+    missingCount: missingItems.length,
+    missingItems,
+    assignmentDates
+  };
+}
+
+function formatLocalDateTime(value) {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
 function buildLocalPlan() {
   const todayIso = toISODateLocal(new Date());
   const items = [];
 
   state.tasks
-    .filter((t) => !t.isCompleted)
+    .filter((t) => !t.isCompleted && isTodayOrFuture(t.due))
     .forEach((t) => {
       const dueIsoRaw = toISODateLocal(t.due) || todayIso;
-      const dueIso = dueIsoRaw < todayIso ? todayIso : dueIsoRaw;
+      if (dueIsoRaw && dueIsoRaw < todayIso) return;
+      const dueIso = dueIsoRaw || todayIso;
       items.push({
         title: t.title,
         dueIso,
@@ -1409,10 +1529,11 @@ function buildLocalPlan() {
     });
 
   state.assignments
-    .filter((a) => !a.isCompleted)
+    .filter((a) => !a.isCompleted && isTodayOrFuture(a.due))
     .forEach((a) => {
       const dueIsoRaw = toISODateLocal(a.due) || todayIso;
-      const dueIso = dueIsoRaw < todayIso ? todayIso : dueIsoRaw;
+      if (dueIsoRaw && dueIsoRaw < todayIso) return;
+      const dueIso = dueIsoRaw || todayIso;
       items.push({
         title: a.title,
         dueIso,
@@ -1436,21 +1557,9 @@ function buildLocalPlan() {
   items.forEach((item) => {
     const dueDate = new Date(item.dueIso);
     const startDate = new Date(todayIso);
-    let chosenIso = item.dueIso;
-    let lowestLoad = Infinity;
-    for (let d = new Date(startDate); d <= dueDate; d.setDate(d.getDate() + 1)) {
-      const iso = toISODateLocal(d);
-      const load = dayMap.get(iso)?.length ?? 0;
-      if (load < 2) {
-        chosenIso = iso;
-        lowestLoad = load;
-        break;
-      }
-      if (load < lowestLoad) {
-        lowestLoad = load;
-        chosenIso = iso;
-      }
-    }
+    // Prefer the actual due date (clamped to today) even if it results in multiple items per day
+    const preferredIso = toISODateLocal(dueDate < startDate ? startDate : dueDate);
+    const chosenIso = preferredIso || todayIso;
     dayMap.get(chosenIso)?.push({
       title: item.title,
       minutes: item.minutes,
@@ -1471,87 +1580,254 @@ function rebalancePlanDays(planDays = []) {
   const end = toISODateLocal(lastDue);
   if (!start || !end) return planDays;
 
-  const overflow = [];
-  const days = [];
-  const cursor = new Date(start);
-  const endDate = new Date(end);
-  const dayMap = new Map(
-    planDays
-      .map((d) => {
-        if (d.date < start) {
-          overflow.push(...(d.items ?? []));
-          return null;
-        }
-        return [d.date, { ...d, items: [...(d.items ?? [])] }];
-      })
-      .filter(Boolean)
+  // initialize buckets for every day from today to last due
+  const buckets = new Map();
+  for (let d = new Date(start); d <= new Date(end); d.setDate(d.getDate() + 1)) {
+    const iso = toISODateLocal(d);
+    buckets.set(iso, { date: iso, items: [] });
+  }
+
+  // clamp any past-dated items up to today and drop anything beyond the range
+  planDays.forEach((day) => {
+    const rawIso = toISODateLocal(day.date);
+    if (!rawIso) return;
+    const clampedIso = rawIso < start ? start : rawIso > end ? end : rawIso;
+    // only copy items; ignore empty shells
+    const bucket = buckets.get(clampedIso);
+    if (bucket && Array.isArray(day.items)) {
+      bucket.items.push(...(day.items ?? []));
+    }
+  });
+
+  return Array.from(buckets.values());
+}
+
+function alignAssignmentsToDue(planDays = []) {
+  if (!planDays.length) return [];
+  const todayIso = toISODateLocal(new Date());
+  const assignmentDueMap = new Map(
+    state.assignments
+      .filter((a) => !a.isCompleted && isTodayOrFuture(a.due))
+      .map((a) => [(a.title || '').toLowerCase(), toISODateLocal(a.due)])
   );
 
-  while (cursor <= endDate) {
-    const iso = toISODateLocal(cursor);
-    if (!dayMap.has(iso)) {
-      dayMap.set(iso, { date: iso, items: [] });
-    }
-    days.push(iso);
-    cursor.setDate(cursor.getDate() + 1);
-  }
-
-  // place any overflow (from past dates) into the earliest day (today)
-  if (overflow.length) {
-    const todayBucket = dayMap.get(start) ?? { date: start, items: [] };
-    todayBucket.items.push(...overflow);
-    dayMap.set(start, todayBucket);
-  }
-
-  // fill empty days by borrowing one item from the nearest later heavy day (never before today)
-  for (let i = 0; i < days.length; i += 1) {
-    const iso = days[i];
-    const bucket = dayMap.get(iso);
-    if (!bucket || bucket.items.length > 0) continue;
-    for (let j = i + 1; j < days.length; j += 1) {
-      const donorIso = days[j];
-      const donor = dayMap.get(donorIso);
-      if (donor && donor.items.length > 1) {
-        bucket.items.push(donor.items.shift());
-        break;
+  const buckets = new Map();
+  planDays.forEach((day) => {
+    const iso = toISODateLocal(day.date);
+    if (!iso) return;
+    if (!buckets.has(iso)) buckets.set(iso, { date: iso, items: [] });
+    (day.items ?? []).forEach((item) => {
+      const titleKey = (item.title || '').toLowerCase();
+      const dueIso = assignmentDueMap.get(titleKey);
+      let targetIso = iso;
+      if (dueIso && iso < dueIso) {
+        targetIso = dueIso;
       }
+      if (targetIso < todayIso) {
+        targetIso = todayIso;
+      }
+      if (!buckets.has(targetIso)) buckets.set(targetIso, { date: targetIso, items: [] });
+      buckets.get(targetIso).items.push(item);
+    });
+  });
+
+  return Array.from(buckets.values()).sort((a, b) => (a.date > b.date ? 1 : a.date < b.date ? -1 : 0));
+}
+
+function ensureAllItemsScheduled(planDays = []) {
+  const pending = collectPendingItems();
+  if (!pending.length) return planDays;
+  const todayIso = toISODateLocal(new Date());
+  const bucketMap = new Map();
+
+  // Seed buckets with plan days, clamping anything in the past up to today
+  planDays.forEach((day) => {
+    const rawIso = toISODateLocal(day.date);
+    if (!rawIso) return;
+    const iso = rawIso < todayIso ? todayIso : rawIso;
+    const existing = bucketMap.get(iso);
+    const items = [...(day.items ?? [])];
+    if (existing) {
+      existing.items.push(...items);
+      bucketMap.set(iso, existing);
+    } else {
+      bucketMap.set(iso, { date: iso, items });
     }
+  });
+
+  // Ensure today bucket exists to hold any clamped past items
+  if (!bucketMap.has(todayIso)) {
+    bucketMap.set(todayIso, { date: todayIso, items: [] });
   }
 
-  // push overflow forward (never earlier) to keep ~2 items per day
-  for (let i = 0; i < days.length; i += 1) {
-    const iso = days[i];
-    const bucket = dayMap.get(iso);
-    if (!bucket) continue;
-    while (bucket.items.length > 2) {
-      const moved = bucket.items.pop();
-      let targetIndex = i + 1;
-      while (targetIndex < days.length) {
-        const targetIso = days[targetIndex];
-        const target = dayMap.get(targetIso);
-        if (target && target.items.length < 2) {
-          target.items.push(moved);
-          break;
+  // Track remaining counts per unique key
+  const pendingByKey = new Map();
+  pending.forEach((p) => {
+    const key = makeKeyWithMinutes(p);
+    if (!pendingByKey.has(key)) {
+      pendingByKey.set(key, { ...p, count: 0 });
+    }
+    const entry = pendingByKey.get(key);
+    entry.count += 1;
+    pendingByKey.set(key, entry);
+  });
+
+  // Decrement for already-scheduled items
+  bucketMap.forEach((day) => {
+    (day.items ?? []).forEach((item) => {
+      const key = makeKeyWithMinutes(item);
+      const entry = pendingByKey.get(key);
+      if (entry) {
+        entry.count -= 1;
+        if (entry.count <= 0) {
+          pendingByKey.delete(key);
+        } else {
+          pendingByKey.set(key, entry);
         }
-        targetIndex += 1;
       }
-      if (targetIndex >= days.length) {
-        bucket.items.push(moved);
+    });
+  });
+
+  // Place any remaining items on the least-loaded day between today and their due date
+  pendingByKey.forEach((entry) => {
+    const targetDue = entry.dueIso || todayIso;
+    const start = new Date(todayIso);
+    const end = new Date(targetDue < todayIso ? todayIso : targetDue);
+    for (let i = 0; i < entry.count; i += 1) {
+      const preferredIso = toISODateLocal(end);
+      const chosenIso = preferredIso && preferredIso >= todayIso ? preferredIso : todayIso;
+      if (!bucketMap.has(chosenIso)) {
+        bucketMap.set(chosenIso, { date: chosenIso, items: [] });
+      }
+      const bucket = bucketMap.get(chosenIso) ?? { date: chosenIso, items: [] };
+      bucket.items.push({
+        title: entry.title,
+        minutes: entry.minutes,
+        source: entry.source
+      });
+      bucketMap.set(chosenIso, bucket);
+    }
+  });
+
+  return Array.from(bucketMap.values()).sort((a, b) => (a.date > b.date ? 1 : a.date < b.date ? -1 : 0));
+}
+
+function balancePlanLoad(planDays = []) {
+  if (!planDays.length) return [];
+  const todayIso = toISODateLocal(new Date());
+  const dueLookup = buildDueLookup();
+  const working = planDays.map((day) => ({
+    date: toISODateLocal(day.date),
+    items: [...(day.items ?? [])]
+  }));
+  const totalItems = working.reduce((acc, d) => acc + (d.items?.length ?? 0), 0);
+  const dayCount = working.length || 1;
+  const targetPerDay = Math.max(2, Math.ceil(totalItems / dayCount));
+
+  // Move items from overloaded days to earlier days before their due, preferring latest possible day with spare capacity
+  for (let i = working.length - 1; i >= 0; i -= 1) {
+    const day = working[i];
+    if (!day) continue;
+    while (day.items.length > targetPerDay) {
+      const item = day.items.pop();
+      const dueIso = getItemDueIso(item, day.date, dueLookup) || day.date;
+      const targetIndex = findNearestWithCapacity(working, i, dueIso, targetPerDay, todayIso);
+      if (targetIndex === i || targetIndex === -1) {
+        // Cannot move; keep in place
+        day.items.push(item);
         break;
       }
+      working[targetIndex].items.push(item);
     }
   }
 
-  return days.map((iso) => dayMap.get(iso)).filter(Boolean);
+  return working.sort((a, b) => (a.date > b.date ? 1 : a.date < b.date ? -1 : 0));
+}
+
+function buildDueLookup() {
+  const map = new Map();
+  state.tasks
+    .filter((t) => !t.isCompleted && isTodayOrFuture(t.due))
+    .forEach((t) => {
+      const iso = toISODateLocal(t.due);
+      if (iso) map.set((t.title || '').toLowerCase(), iso);
+    });
+  state.assignments
+    .filter((a) => !a.isCompleted && isTodayOrFuture(a.due))
+    .forEach((a) => {
+      const iso = toISODateLocal(a.due);
+      if (iso) map.set((a.title || '').toLowerCase(), iso);
+    });
+  return map;
+}
+
+function getItemDueIso(item, fallbackIso, dueLookup) {
+  const titleKey = (item?.title || '').toLowerCase();
+  return dueLookup.get(titleKey) || fallbackIso;
+}
+
+function findNearestWithCapacity(days, fromIndex, dueIso, targetPerDay, todayIso) {
+  let bestIndex = fromIndex;
+  for (let idx = fromIndex - 1; idx >= 0; idx -= 1) {
+    const day = days[idx];
+    if (!day || !day.date) continue;
+    if (day.date < todayIso) continue;
+    if (day.date > dueIso) continue;
+    if (day.items.length < targetPerDay) {
+      bestIndex = idx;
+      break;
+    }
+  }
+  return bestIndex;
+}
+
+function collectPendingItems() {
+  const todayIso = toISODateLocal(new Date());
+  const items = [];
+  state.tasks
+    .filter((t) => !t.isCompleted && isTodayOrFuture(t.due))
+    .forEach((t) => {
+      const dueIsoRaw = toISODateLocal(t.due) || todayIso;
+      if (dueIsoRaw && dueIsoRaw < todayIso) return;
+      const dueIso = dueIsoRaw || todayIso;
+      items.push({
+        title: t.title,
+        source: 'task',
+        minutes: sanitizeDuration(t.estimatedDuration),
+        dueIso
+      });
+    });
+  state.assignments
+    .filter((a) => !a.isCompleted && isTodayOrFuture(a.due))
+    .forEach((a) => {
+      const dueIsoRaw = toISODateLocal(a.due) || todayIso;
+      if (dueIsoRaw && dueIsoRaw < todayIso) return;
+      const dueIso = dueIsoRaw || todayIso;
+      items.push({
+        title: a.title,
+        source: 'assignment',
+        minutes: sanitizeDuration(a.estimatedDuration),
+        dueIso
+      });
+    });
+  return items;
+}
+
+function makeKeyWithMinutes(item) {
+  return `${(item.source || '').toLowerCase()}::${(item.title || '').toLowerCase()}::${item.minutes ?? 'na'}`;
+}
+
+function countPlanItems(planDays = []) {
+  return planDays.reduce((acc, day) => acc + (Array.isArray(day.items) ? day.items.length : 0), 0);
 }
 
 function latestDueDate() {
   const dates = [];
   state.tasks.forEach((t) => {
-    if (t.due) dates.push(new Date(t.due));
+    if (t.due && isTodayOrFuture(t.due)) dates.push(new Date(t.due));
   });
   state.assignments.forEach((a) => {
-    if (a.due) dates.push(new Date(a.due));
+    if (a.due && isTodayOrFuture(a.due)) dates.push(new Date(a.due));
   });
   const valid = dates.filter((d) => !Number.isNaN(d.getTime()));
   if (!valid.length) return null;

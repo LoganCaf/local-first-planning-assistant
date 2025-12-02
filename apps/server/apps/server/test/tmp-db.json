@@ -1,7 +1,7 @@
 {
   "tasks": [
     {
-      "id": "minwh3jv-i0kezk",
+      "id": "miouks7o-8x2c8d",
       "title": "Assignment due Nov 14 8am",
       "description": "",
       "estimatedDuration": 90,
@@ -19,8 +19,8 @@
       "history": [],
       "isCompleted": false,
       "categoryWeights": {},
-      "createdAt": "2025-12-02T01:29:19.675Z",
-      "updatedAt": "2025-12-02T01:29:19.675Z"
+      "createdAt": "2025-12-02T17:23:58.548Z",
+      "updatedAt": "2025-12-02T17:23:58.548Z"
     }
   ],
   "goals": [],
@@ -28,7 +28,7 @@
   "placements": [],
   "conversationLog": [
     {
-      "timestamp": "2025-12-02T01:29:19.676Z",
+      "timestamp": "2025-12-02T17:23:58.548Z",
       "user": "Assignment due Nov 14 8am",
       "assistant": "Captured your request. (Assignment due Nov 14 8am)\n\nCaptured task: Assignment due Nov 14 8am (due 12/14/2025, 8:00:00 AM)"
     }

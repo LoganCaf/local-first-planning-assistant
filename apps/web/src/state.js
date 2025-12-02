@@ -19,7 +19,13 @@ export const state = {
   calendarMonth: new Date(now.getFullYear(), now.getMonth(), 1),
   aiPlanDays: [],
   aiPlanLoading: false,
-  aiPlanSelectedDate: now
+  aiPlanSelectedDate: now,
+  upcomingAssignmentCount: 0,
+  aiPlanAudit: {
+    missingCount: 0,
+    missingItems: [],
+    assignmentDates: []
+  }
 };
 
 const listeners = new Set();
