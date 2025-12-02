@@ -123,6 +123,9 @@ export const api = {
       body: JSON.stringify(payload)
     });
   },
+  deleteAllAssignments() {
+    return request('/api/assignments?all=true', { method: 'DELETE' });
+  },
   listAssignmentSegments(assignmentId) {
     const query = assignmentId ? `?assignmentId=${encodeURIComponent(assignmentId)}` : '';
     return request(`/api/assignment-segments${query}`);

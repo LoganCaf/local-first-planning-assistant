@@ -121,25 +121,32 @@ a {
 }
 
 .view--calendar.active {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: 1.25fr 1fr;
+  grid-template-rows: auto auto;
   grid-template-areas:
-    'month'
-    'agenda'
-    'insights';
+    'month sidebar';
   align-items: start;
+  gap: 0.15rem;
 }
 
 .view--calendar.active > .calendar-panel {
   grid-area: month;
+  max-width: 900px;
 }
 
 .view--calendar.active > .agenda-panel {
-  grid-area: agenda;
+  grid-area: sidebar;
+  display: grid;
 }
 
 .view--calendar.active > .insights-panel {
   grid-area: insights;
 }
+
+.countdown-column {
+  display: none;
+}
+
 
 .view--tasks.active,
 .view--assignments.active,
@@ -239,6 +246,7 @@ a {
 .agenda-panel {
   display: grid;
   gap: 1rem;
+  align-self: start;
 }
 
 .agenda-header {
@@ -262,6 +270,7 @@ a {
   background: rgba(255, 255, 255, 0.05);
   border-radius: 1rem;
   border: 1px solid rgba(255, 255, 255, 0.04);
+  cursor: pointer;
 }
 
 .agenda-time {
@@ -285,6 +294,7 @@ a {
 .countdown-panel {
   display: grid;
   gap: 0.75rem;
+  align-self: start;
 }
 
 .countdown-list {
@@ -310,6 +320,27 @@ a {
   flex-wrap: wrap;
   color: var(--text-secondary);
   font-size: 0.9rem;
+}
+
+.active-tracking-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.5rem;
+}
+
+.active-item {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.75rem;
+  background: rgba(0, 0, 0, 0.02);
+  display: grid;
+  gap: 0.35rem;
+}
+
+.active-item .task-actions {
+  gap: 0.35rem;
 }
 
 .empty-state {
@@ -667,17 +698,22 @@ textarea:focus {
 
 .tab-bar {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.25rem;
-  padding: 0.6rem 1.4rem;
-  border-radius: 999px;
-  position: sticky;
-  bottom: 1rem;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.35rem;
+  padding: 0.6rem 1rem;
+  border-radius: 12px;
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
   margin: 0 auto;
   backdrop-filter: blur(20px);
-  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
-  max-width: 520px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.35);
+  max-width: 900px;
   width: calc(100% - 2rem);
+  z-index: 5;
+  background: rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .tab-button {
@@ -882,12 +918,42 @@ textarea:focus {
   padding: 0.6rem 0.8rem;
 }
 
+.highlight {
+  outline: 2px solid #4f8dff;
+  box-shadow: 0 0 0 4px rgba(79, 141, 255, 0.25);
+  transition: box-shadow 0.3s ease;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 20;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-content {
+  width: min(480px, 90vw);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 @media (min-width: 1100px) {
   .view--calendar.active {
-    grid-template-columns: 2fr 1fr;
+    grid-template-columns: 1.25fr 1fr;
+    grid-template-rows: auto;
     grid-template-areas:
-      'month month'
-      'agenda insights';
+      'month sidebar';
   }
 }
 
@@ -896,8 +962,8 @@ textarea:focus {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas:
       'month'
-      'agenda'
-      'insights';
+      'sidebar'
+      'sidebar2';
   }
 
   .app-shell {
@@ -905,10 +971,10 @@ textarea:focus {
   }
 
   .tab-bar {
-    position: fixed;
-    left: 50%;
-    transform: translateX(-50%);
-    bottom: 1rem;
+    position: sticky;
+    top: 0;
+    margin: 0 auto 0.75rem;
+    width: calc(100% - 1.5rem);
   }
 }
 

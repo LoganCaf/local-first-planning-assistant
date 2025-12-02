@@ -265,6 +265,13 @@ async function handleAssignments(req, res, url, store) {
     });
     return;
   }
+  if (req.method === 'DELETE' && url.searchParams.get('all') === 'true') {
+    store.state.assignments = [];
+    store.state.assignmentSegments = [];
+    store.save();
+    respondJson(res, { removed: true });
+    return;
+  }
   if (req.method === 'POST') {
     const body = await readJsonBody(req);
     const items = Array.isArray(body.assignments) ? body.assignments : [body];
@@ -310,9 +317,23 @@ async function handleAssignments(req, res, url, store) {
 
 async function handleAssignmentImport(req, res, store) {
   const body = await readJsonBody(req);
-  const icsText = body.icsText ?? '';
+  let icsText = body.icsText ?? '';
   const sourceName = body.sourceName ?? 'Canvas ICS';
   const sourceURL = body.sourceURL ?? null;
+  if ((!icsText || icsText.trim().length === 0) && sourceURL) {
+    try {
+      const response = await fetch(sourceURL);
+      if (!response.ok) {
+        throw new Error(`Failed to fetch ICS: ${response.status}`);
+      }
+      icsText = await response.text();
+    } catch (error) {
+      res.writeHead(500);
+      res.end(error.message);
+      return;
+    }
+  }
+
   const result = importAssignmentsFromICS(icsText, sourceName, sourceURL, store);
   if (!result) {
     res.writeHead(400);

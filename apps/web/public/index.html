@@ -34,20 +34,7 @@
               <h2 id="agenda-title">Today's countdown</h2>
               <button id="regenerate-plan" class="ghost-button" type="button">Regenerate plan</button>
             </div>
-            <div id="agenda-empty" class="empty-state agenda-empty">
-              <span class="empty-icon">☀️</span>
-              <p>No events for this day</p>
-              <p class="hint">Add a task or routine to see it here.</p>
-            </div>
-            <ul id="agenda-list" class="agenda-list"></ul>
-          </div>
-          <div class="countdown-panel glass">
-            <h3>Countdown</h3>
-            <ul id="countdown-list" class="countdown-list"></ul>
-          </div>
-          <div class="insights-panel glass">
-            <h3>Weekly snapshot</h3>
-            <div id="insight-cards" class="insight-grid"></div>
+            <ul id="agenda-list" class="countdown-list"></ul>
           </div>
         </section>
 
@@ -133,6 +120,9 @@
             <p id="assignment-import-status" class="hint" aria-live="polite"></p>
           </div>
           <ul id="assignment-list" class="assignment-list glass"></ul>
+          <div class="button-row">
+            <button id="assignment-remove-all" class="ghost-button" type="button">Remove all assignments</button>
+          </div>
         </section>
 
         <section data-view="routines" id="routines-view" class="view view--routines">
@@ -204,7 +194,7 @@
         </section>
       </main>
 
-      <nav class="tab-bar glass" aria-label="Primary">
+      <nav class="tab-bar glass top-bar" aria-label="Primary">
         <button type="button" data-tab="calendar" class="tab-button active">
           <span class="icon">📅</span>
           <span>Calendar</span>
@@ -226,6 +216,50 @@
           <span>Chat</span>
         </button>
       </nav>
+    </div>
+
+    <!-- Task edit modal -->
+    <div id="task-modal" class="modal hidden">
+      <div class="modal-content glass">
+        <div class="modal-header">
+          <h3>Edit task</h3>
+          <button type="button" id="task-modal-close" class="ghost-button">Close</button>
+        </div>
+        <form id="task-modal-form" class="form-card">
+          <input type="hidden" name="id" />
+          <div class="field">
+            <label>Title</label>
+            <input name="title" required />
+          </div>
+          <div class="field">
+            <label>Description</label>
+            <textarea name="description" rows="2"></textarea>
+          </div>
+          <div class="field-row">
+            <label>Duration (min)</label>
+            <input name="duration" type="number" min="0" step="15" />
+          </div>
+          <div class="field-row">
+            <label>Priority</label>
+            <input name="priority" type="number" min="1" max="5" />
+          </div>
+          <div class="field">
+            <label><input type="checkbox" name="hasDeadline" /> Has deadline</label>
+          </div>
+          <div class="field">
+            <label>Due</label>
+            <input name="due" type="datetime-local" />
+          </div>
+          <div class="field">
+            <label>Start</label>
+            <input name="start" type="datetime-local" />
+          </div>
+          <div class="button-row">
+            <button type="button" id="task-modal-cancel" class="ghost-button">Cancel</button>
+            <button type="submit" class="primary-button">Save</button>
+          </div>
+        </form>
+      </div>
     </div>
 
     <script type="module" src="/src/app.js"></script>

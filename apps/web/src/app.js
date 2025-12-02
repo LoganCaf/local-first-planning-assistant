@@ -2,7 +2,6 @@ import { api } from './api.js';
 import { state, setState, subscribe } from './state.js';
 import {
   renderCalendar,
-  renderAgenda,
   renderInsightCards,
   renderTasks,
   renderActiveTasks,
@@ -26,14 +25,12 @@ const elements = {
   calendarToday: document.getElementById('calendar-today'),
   agendaTitle: document.getElementById('agenda-title'),
   agendaList: document.getElementById('agenda-list'),
-  agendaEmpty: document.getElementById('agenda-empty'),
   regeneratePlan: document.getElementById('regenerate-plan'),
   insightCards: document.getElementById('insight-cards'),
   taskForm: document.getElementById('task-form'),
   taskList: document.getElementById('task-list'),
   taskActiveList: document.getElementById('task-active-list'),
   taskFilters: document.getElementById('task-filters'),
-  countdownList: document.getElementById('countdown-list'),
   assignmentFile: document.getElementById('assignment-file'),
   assignmentImport: document.getElementById('assignment-import'),
   assignmentImportStatus: document.getElementById('assignment-import-status'),
@@ -43,7 +40,11 @@ const elements = {
   assistantLog: document.getElementById('assistant-log'),
   assistantForm: document.getElementById('assistant-form'),
   assistantInput: document.getElementById('assistant-input'),
-  tabBar: document.querySelector('.tab-bar')
+  tabBar: document.querySelector('.tab-bar'),
+  taskModal: document.getElementById('task-modal'),
+  taskModalForm: document.getElementById('task-modal-form'),
+  taskModalClose: document.getElementById('task-modal-close'),
+  taskModalCancel: document.getElementById('task-modal-cancel')
 };
 
 const views = Array.from(document.querySelectorAll('[data-view]'));
@@ -64,23 +65,18 @@ subscribe((snapshot) => {
     selectedDate: snapshot.selectedDate,
     schedule: snapshot.schedule,
     tasks: snapshot.tasks,
-    assignments: snapshot.assignments
+    assignments: snapshot.assignments,
+    segments: [...snapshot.taskSegments, ...snapshot.assignmentSegments]
   });
   if (elements.agendaTitle) {
     elements.agendaTitle.textContent = formatSelectedHeading(snapshot.selectedDate);
   }
-  renderAgenda({
-    listEl: elements.agendaList,
-    emptyEl: elements.agendaEmpty,
-    schedule: snapshot.schedule,
-    tasks: snapshot.tasks,
-    assignments: snapshot.assignments,
-    selectedDate: snapshot.selectedDate
-  });
   renderCountdowns({
-    listEl: elements.countdownList,
+    listEl: elements.agendaList,
     tasks: snapshot.tasks,
+    taskSegments: snapshot.taskSegments,
     assignments: snapshot.assignments,
+    assignmentSegments: snapshot.assignmentSegments,
     selectedDate: snapshot.selectedDate
   });
   renderInsightCards(elements.insightCards, snapshot.insights);
@@ -114,6 +110,13 @@ function registerEvents() {
       if (!target) return;
       switchTab(target.dataset.tab);
     });
+  }
+
+  if (elements.taskModalClose) {
+    elements.taskModalClose.addEventListener('click', closeTaskModal);
+  }
+  if (elements.taskModalCancel) {
+    elements.taskModalCancel.addEventListener('click', closeTaskModal);
   }
 
   const deadlineCheckbox = document.getElementById('task-has-deadline');
@@ -358,6 +361,40 @@ function registerEvents() {
     });
   }
 
+  if (elements.agendaList) {
+    elements.agendaList.addEventListener('click', (event) => {
+      const li = event.target.closest('[data-task-id]');
+      if (!li) return;
+      const task = state.tasks.find((t) => t.id === li.dataset.taskId);
+      if (task) openTaskModal(task);
+    });
+  }
+
+  if (elements.taskModalForm) {
+    elements.taskModalForm.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = elements.taskModalForm;
+      const id = form.elements.id.value;
+      const existing = state.tasks.find((t) => t.id === id);
+      if (!existing) return;
+      const updated = { ...existing };
+      updated.title = form.elements.title.value.trim() || existing.title;
+      updated.description = form.elements.description.value.trim() || '';
+      const dur = Number(form.elements.duration.value || existing.estimatedDuration || 0);
+      updated.estimatedDuration = Number.isNaN(dur) ? 0 : dur;
+      const pri = Number(form.elements.priority.value || existing.priority || 3);
+      updated.priority = Number.isNaN(pri) ? existing.priority : pri;
+      updated.hasDeadline = form.elements.hasDeadline.checked;
+      const dueVal = form.elements.due.value;
+      updated.due = dueVal ? new Date(dueVal) : null;
+      const startVal = form.elements.start.value;
+      updated.start = startVal ? new Date(startVal) : null;
+      await api.updateTask(updated);
+      await loadTasks();
+      closeTaskModal();
+    });
+  }
+
   if (elements.routineForm) {
     elements.routineForm.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -421,6 +458,22 @@ function registerEvents() {
     });
   }
 
+  const assignmentRemoveAll = document.getElementById('assignment-remove-all');
+  if (assignmentRemoveAll) {
+    assignmentRemoveAll.addEventListener('click', async () => {
+      if (!window.confirm('Remove all assignments? This cannot be undone.')) return;
+      try {
+        await api.deleteAllAssignments();
+        await loadAssignments();
+        await loadAssignmentSegments();
+        setImportStatus('All assignments removed.');
+      } catch (error) {
+        console.error(error);
+        setImportStatus('Failed to remove assignments.');
+      }
+    });
+  }
+
   const assignmentImportURL = document.getElementById('assignment-import-url');
   const assignmentURLInput = document.getElementById('assignment-url');
   const assignmentSyncButton = document.getElementById('assignment-sync');
@@ -434,10 +487,7 @@ function registerEvents() {
       }
       setImportStatus('Fetching ICS...');
       try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error('Failed to fetch ICS');
-        const text = await response.text();
-        await api.importAssignments(text, url, url);
+        await api.importAssignments('', url, url);
         await loadAssignments();
         await loadAssignmentSegments();
         setImportStatus('Imported assignments from URL.');
@@ -601,6 +651,18 @@ function registerEvents() {
       await respondAssistant(message);
     });
   }
+
+  if (elements.agendaList) {
+    elements.agendaList.addEventListener('click', (event) => {
+      const li = event.target.closest('[data-task-id]');
+      if (!li) return;
+      const id = li.dataset.taskId;
+      const task = state.tasks.find((t) => t.id === id);
+      if (task) {
+        openTaskModal(task);
+      }
+    });
+  }
 }
 
 function parseLocalISODate(value) {
@@ -720,6 +782,25 @@ async function toggleSegmentCompletion(id) {
 function setImportStatus(message) {
   if (!elements.assignmentImportStatus) return;
   elements.assignmentImportStatus.textContent = message;
+}
+
+function openTaskModal(task) {
+  if (!elements.taskModal || !elements.taskModalForm) return;
+  elements.taskModal.classList.remove('hidden');
+  const form = elements.taskModalForm;
+  form.elements.id.value = task.id;
+  form.elements.title.value = task.title;
+  form.elements.description.value = task.description ?? '';
+  form.elements.duration.value = task.estimatedDuration ?? task.estimatedDurationMinutes ?? 0;
+  form.elements.priority.value = task.priority ?? 3;
+  form.elements.hasDeadline.checked = task.hasDeadline !== false;
+  form.elements.due.value = task.due ? toInputValue(task.due, false) : '';
+  form.elements.start.value = task.start ? toInputValue(task.start, false) : '';
+}
+
+function closeTaskModal() {
+  if (!elements.taskModal) return;
+  elements.taskModal.classList.add('hidden');
 }
 
 function pushAssistantMessage(role, content) {

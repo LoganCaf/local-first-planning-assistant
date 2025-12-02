@@ -24,7 +24,8 @@ export function renderCalendar({
   selectedDate,
   schedule,
   tasks = [],
-  assignments = []
+  assignments = [],
+  segments = []
 }) {
   if (!monthLabelEl || !gridEl) return;
   const monthDate = normalizeDate(calendarMonth);
@@ -40,7 +41,7 @@ export function renderCalendar({
 
   const selectedIso = toISODate(selected);
   const todayIso = toISODate(new Date());
-  const markers = buildScheduleMarkers(schedule ?? [], tasks, assignments);
+  const markers = buildScheduleMarkers(schedule ?? [], tasks, assignments, segments);
   const matrix = buildMonthMatrix(monthDate);
 
   gridEl.innerHTML = '';
@@ -72,7 +73,7 @@ export function renderCalendar({
   });
 }
 
-export function renderAgenda({ listEl, emptyEl, schedule, tasks = [], assignments = [], selectedDate }) {
+export function renderAgenda({ listEl, emptyEl, schedule, tasks = [], taskSegments = [], assignments = [], assignmentSegments = [], selectedDate }) {
   if (!listEl || !emptyEl) return;
   const iso = toISODate(selectedDate ?? new Date());
   const scheduled = (schedule ?? []).map((item) => ({
@@ -104,7 +105,25 @@ export function renderAgenda({ listEl, emptyEl, schedule, tasks = [], assignment
       metadata: { priority: assignment.priority, due: assignment.due, source: 'assignment' }
     }));
 
-  const events = [...scheduled, ...taskEvents, ...assignmentEvents]
+  const taskSegmentEvents = taskSegments
+    .filter((seg) => toISODate(seg.due) === iso)
+    .map((seg) => ({
+      start: new Date(seg.start ?? seg.due ?? selectedDate),
+      end: new Date(seg.due ?? seg.start ?? selectedDate),
+      title: seg.title,
+      metadata: { priority: seg.priority, due: seg.due, source: 'task-segment' }
+    }));
+
+  const assignmentSegmentEvents = assignmentSegments
+    .filter((seg) => toISODate(seg.due) === iso)
+    .map((seg) => ({
+      start: new Date(seg.due ?? selectedDate),
+      end: new Date(seg.due ?? selectedDate),
+      title: seg.title,
+      metadata: { priority: seg.priority, due: seg.due, source: 'assignment-segment' }
+    }));
+
+  const events = [...scheduled, ...taskEvents, ...assignmentEvents, ...taskSegmentEvents, ...assignmentSegmentEvents]
     .filter((item) => toISODate(item.start) === iso)
     .sort((a, b) => a.start - b.start);
 
@@ -118,6 +137,9 @@ export function renderAgenda({ listEl, emptyEl, schedule, tasks = [], assignment
   events.forEach((event) => {
     const li = document.createElement('li');
     li.className = 'agenda-item';
+    if (event.metadata?.source === 'task') {
+      li.dataset.taskId = event.metadata.id;
+    }
     const title = escapeHtml(event.title ?? 'Scheduled focus block');
     const timeRange = formatTimeRange(event.start, event.end);
     const metaParts = [];
@@ -132,6 +154,7 @@ export function renderAgenda({ listEl, emptyEl, schedule, tasks = [], assignment
         <p class="agenda-meta">${metaParts.join(' • ') || 'Planned by assistant'}</p>
       </div>
     `;
+    li.addEventListener('click', () => handleAgendaClick(event));
     listEl.append(li);
   });
 }
@@ -412,7 +435,7 @@ export function formatSelectedHeading(date) {
   return `Countdown for ${LONG_DAY_FORMATTER.format(normalized)}`;
 }
 
-export function renderCountdowns({ listEl, tasks = [], assignments = [], selectedDate }) {
+export function renderCountdowns({ listEl, tasks = [], taskSegments = [], assignments = [], assignmentSegments = [], selectedDate }) {
   if (!listEl) return;
   const now = new Date();
   const targetDate = normalizeDate(selectedDate ?? now);
@@ -423,6 +446,7 @@ export function renderCountdowns({ listEl, tasks = [], assignments = [], selecte
       .map((task) => ({
         title: task.title,
         due: task.due ?? task.start ?? targetDate,
+        end: task.due ?? (task.start ? new Date(new Date(task.start).getTime() + (task.estimatedDuration ?? 60) * 60000) : null),
         start: task.start,
         duration: task.estimatedDuration ?? 60,
         source: 'Task',
@@ -433,10 +457,33 @@ export function renderCountdowns({ listEl, tasks = [], assignments = [], selecte
       .map((assignment) => ({
         title: assignment.title,
         due: assignment.due,
+        end: assignment.end ?? assignment.due,
         start: assignment.due,
         duration: assignment.estimatedDuration ?? 60,
         source: 'Assignment',
         priority: assignment.priority
+      })),
+    ...taskSegments
+      .filter((seg) => toISODate(seg.due ?? seg.start ?? seg.due) === iso && !seg.isCompleted)
+      .map((seg) => ({
+        title: seg.title,
+        due: seg.due ?? targetDate,
+        end: seg.due ?? targetDate,
+        start: seg.start ?? seg.due ?? targetDate,
+        duration: seg.estimatedDuration ?? 60,
+        source: 'Task segment',
+        priority: seg.priority
+      })),
+    ...assignmentSegments
+      .filter((seg) => toISODate(seg.due ?? seg.start ?? seg.due) === iso && !seg.isCompleted)
+      .map((seg) => ({
+        title: seg.title,
+        due: seg.due ?? targetDate,
+        end: seg.due ?? targetDate,
+        start: seg.start ?? seg.due ?? targetDate,
+        duration: seg.estimatedDuration ?? 60,
+        source: 'Assignment segment',
+        priority: seg.priority
       }))
   ].sort((a, b) => new Date(a.due) - new Date(b.due));
 
@@ -448,10 +495,11 @@ export function renderCountdowns({ listEl, tasks = [], assignments = [], selecte
 
   items.forEach((item) => {
     const dueDate = new Date(item.due);
-    const remainingMs = dueDate - now;
+    const endDate = item.end ? new Date(item.end) : dueDate;
+    const remainingMs = endDate - now;
     const remainingText = remainingMs > 0 ? formatRemaining(remainingMs) : 'Past due';
     const startText = item.start ? `Starts ${formatTimeRange(new Date(item.start), new Date(item.start))}` : '';
-    const meta = [item.source, startText, `Due ${LONG_DAY_FORMATTER.format(dueDate)}`]
+    const meta = [item.source, startText, `Due ${LONG_DAY_FORMATTER.format(endDate)}`]
       .filter(Boolean)
       .join(' • ');
 
@@ -475,6 +523,19 @@ function formatRemaining(ms) {
   const mins = minutes % 60;
   if (hours > 0) return `${hours}h ${mins}m left`;
   return `${mins}m left`;
+}
+
+function handleAgendaClick(event) {
+  const source = event.metadata?.source;
+  const id = event.metadata?.id;
+  if (source === 'task' && id) {
+    const target = document.querySelector(`[data-task-id="${id}"]`);
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      target.classList.add('highlight');
+      setTimeout(() => target.classList.remove('highlight'), 1200);
+    }
+  }
 }
 
 export function renderAssignments(listEl, assignments = [], segments = []) {
@@ -627,7 +688,7 @@ function buildMonthMatrix(anchor = new Date()) {
   return result;
 }
 
-function buildScheduleMarkers(schedule, tasks = [], assignments = []) {
+function buildScheduleMarkers(schedule, tasks = [], assignments = [], segments = []) {
   const markers = new Map();
   (schedule ?? []).forEach((item) => {
     const iso = toISODate(new Date(item.start));
@@ -640,6 +701,11 @@ function buildScheduleMarkers(schedule, tasks = [], assignments = []) {
   });
   assignments.forEach((assignment) => {
     const iso = toISODate(assignment.due);
+    if (!iso) return;
+    markers.set(iso, (markers.get(iso) ?? 0) + 1);
+  });
+  segments.forEach((seg) => {
+    const iso = toISODate(seg.due ?? seg.start);
     if (!iso) return;
     markers.set(iso, (markers.get(iso) ?? 0) + 1);
   });
@@ -763,4 +829,41 @@ function toInputValue(dateValue, allDay = false) {
   const offset = d.getTimezoneOffset();
   const local = new Date(d.getTime() - offset * 60000);
   return local.toISOString().slice(0, 16);
+}
+
+export function renderActiveTracking({ listEl, tasks = [], taskSegments = [], assignments = [], assignmentSegments = [] }) {
+  if (!listEl) return;
+  listEl.innerHTML = '';
+  const items = [];
+
+  tasks
+    .filter((t) => t.history?.some((h) => h.startedAt && !h.stoppedAt))
+    .forEach((t) => items.push({ title: t.title, source: 'Todo', timer: renderTaskTimerLabel(t) }));
+  assignments
+    .filter((a) => a.history?.some((h) => h.startedAt && !h.stoppedAt))
+    .forEach((a) => items.push({ title: a.title, source: 'Assignment', timer: renderTaskTimerLabel(a) }));
+  taskSegments
+    .filter((s) => s.history?.some((h) => h.startedAt && !h.stoppedAt))
+    .forEach((s) => items.push({ title: s.title, source: 'Todo segment', timer: renderTaskTimerLabel(s) }));
+  assignmentSegments
+    .filter((s) => s.history?.some((h) => h.startedAt && !h.stoppedAt))
+    .forEach((s) => items.push({ title: s.title, source: 'Assignment segment', timer: renderTaskTimerLabel(s) }));
+
+  if (!items.length) {
+    listEl.innerHTML = '<li class="empty-state">No active timers.</li>';
+    return;
+  }
+
+  items.forEach((item) => {
+    const li = document.createElement('li');
+    li.className = 'active-item';
+    li.innerHTML = `
+      <div class="task-header">
+        <span class="task-title">${escapeHtml(item.title)}</span>
+        <span class="task-category">${escapeHtml(item.source)}</span>
+      </div>
+      <div class="task-meta">${escapeHtml(item.timer)}</div>
+    `;
+    listEl.append(li);
+  });
 }

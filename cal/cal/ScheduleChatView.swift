@@ -76,14 +76,38 @@ struct ScheduleChatView: View {
                 .presentationDetents([.medium])
         }
         .onAppear {
-                if messages.isEmpty {
+            if messages.isEmpty {
                 var intro = assistant.greeting
+                if let pick = pickFocusTask() {
+                    intro += "\n\nI chose a task to focus on now:\n• \(pick.title) (Due \(pick.dueText)).\nWant to start it? I can keep you accountable."
+                } else {
+                    intro += "\n\nYou don’t have any active todos. Add one and I’ll help you start."
+                }
                 if apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     intro += "\n\nIf you set an OpenAI API key, ChatGPT can converse and help manage your schedule. Tap the key icon in the top-right to save the key."
                 }
                 messages.append(ChatMessage(role: .assistant, text: intro))
             }
         }
+    }
+
+    private func pickFocusTask() -> (title: String, dueText: String)? {
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = locale
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+
+        let candidate = data.todos
+            .filter { !$0.isCompleted }
+            .sorted { lhs, rhs in
+                if lhs.dueDate == rhs.dueDate { return lhs.priority.rawValue > rhs.priority.rawValue }
+                return lhs.dueDate < rhs.dueDate
+            }
+            .first
+
+        guard let task = candidate else { return nil }
+        return (task.title, formatter.string(from: task.dueDate))
     }
 
     @MainActor
@@ -372,14 +396,24 @@ private struct ScheduleAssistant {
     }
 
     private func systemPrompt(data: AppData, calendar: Calendar, locale: Locale) -> String {
+        let nowDate = Date()
         let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.timeZone = calendar.timeZone
         isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let now = isoFormatter.string(from: Date())
+        let now = isoFormatter.string(from: nowDate)
+
+        let dateFormatter = DateFormatter()
+        dateFormatter.calendar = calendar
+        dateFormatter.locale = locale
+        dateFormatter.timeZone = calendar.timeZone
+        dateFormatter.dateStyle = .medium
+        dateFormatter.timeStyle = .short
+        let friendlyNow = dateFormatter.string(from: nowDate)
 
         let snapshot = scheduleSnapshot(data: data, calendar: calendar, locale: locale)
 
                 return """
-                You are "SimpleCalendar Assistant", a helpful scheduling assistant embedded inside an iOS app. Current date-time: \(now) (\(calendar.timeZone.identifier)).
+                You are "SimpleCalendar Assistant", a helpful scheduling assistant embedded inside an iOS app. Current date-time: \(friendlyNow) (\(calendar.timeZone.identifier), ISO \(now)).
 
                 Instructions:
                 1. Prefer responding in English unless the user explicitly requests another language.
