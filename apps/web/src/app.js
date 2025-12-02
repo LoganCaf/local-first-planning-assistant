@@ -40,12 +40,19 @@ const elements = {
   assistantLog: document.getElementById('assistant-log'),
   assistantForm: document.getElementById('assistant-form'),
   assistantInput: document.getElementById('assistant-input'),
+  openAiKeyInput: document.getElementById('openai-key'),
+  openAiKeySave: document.getElementById('openai-key-save'),
+  openAiKeyClear: document.getElementById('openai-key-clear'),
+  openAiKeyStatus: document.getElementById('openai-key-status'),
   tabBar: document.querySelector('.tab-bar'),
   taskModal: document.getElementById('task-modal'),
   taskModalForm: document.getElementById('task-modal-form'),
   taskModalClose: document.getElementById('task-modal-close'),
   taskModalCancel: document.getElementById('task-modal-cancel')
 };
+
+const OPENAI_KEY_STORAGE = 'openai_api_key';
+let openAIApiKey = loadStoredApiKey();
 
 let countdownIntervalId;
 
@@ -95,6 +102,7 @@ bootstrap();
 registerEvents();
 
 async function bootstrap() {
+  syncOpenAIKeyUI();
   await refreshConnection();
   await loadTasks();
   await loadTaskSegments();
@@ -682,6 +690,23 @@ function registerEvents() {
     });
   }
 
+  if (elements.openAiKeySave && elements.openAiKeyInput) {
+    elements.openAiKeySave.addEventListener('click', () => {
+      const value = elements.openAiKeyInput.value.trim();
+      openAIApiKey = value;
+      localStorage.setItem(OPENAI_KEY_STORAGE, value);
+      syncOpenAIKeyUI();
+    });
+  }
+
+  if (elements.openAiKeyClear) {
+    elements.openAiKeyClear.addEventListener('click', () => {
+      openAIApiKey = '';
+      localStorage.removeItem(OPENAI_KEY_STORAGE);
+      syncOpenAIKeyUI();
+    });
+  }
+
   if (elements.assistantForm) {
     elements.assistantForm.addEventListener('submit', async (event) => {
       event.preventDefault();
@@ -791,9 +816,21 @@ async function promptEditTask(id) {
 async function respondAssistant(message) {
   setState({ assistantPending: true });
   try {
-    const history = [...state.assistantHistory];
-    const response = await api.sendAssistantMessage(message, history);
-    pushAssistantMessage('ai', response.reply ?? 'Noted. I will keep that in mind.');
+    const key = openAIApiKey.trim();
+    if (key) {
+      const result = await sendOpenAIChat(message, key);
+      if (result.replyText) {
+        pushAssistantMessage('ai', result.replyText);
+      }
+      if (result.actions?.length) {
+        const summaries = await applyScheduleActions(result.actions);
+        summaries.forEach((summary) => pushAssistantMessage('ai', summary));
+      }
+    } else {
+      const history = [...state.assistantHistory];
+      const response = await api.sendAssistantMessage(message, history);
+      pushAssistantMessage('ai', response.reply ?? 'Noted. I will keep that in mind.');
+    }
   } catch (error) {
     console.error(error);
     pushAssistantMessage('ai', "I'm offline at the moment. Capture it as a task and I'll reschedule once I'm back.");
@@ -899,4 +936,269 @@ function getReferenceDateForDay(day) {
   const reference = new Date(base);
   reference.setDate(base.getDate() + offset);
   return reference;
+}
+
+function loadStoredApiKey() {
+  return localStorage.getItem(OPENAI_KEY_STORAGE) ?? '';
+}
+
+function syncOpenAIKeyUI() {
+  if (elements.openAiKeyInput) {
+    elements.openAiKeyInput.value = openAIApiKey ? openAIApiKey : '';
+  }
+  if (elements.openAiKeyStatus) {
+    elements.openAiKeyStatus.textContent = openAIApiKey
+      ? 'Using OpenAI key (stored locally). Ask me to add or toggle tasks.'
+      : 'No OpenAI key set. Using the local assistant fallback.';
+  }
+}
+
+function buildSystemPrompt() {
+  const now = new Date();
+  const snapshot = buildScheduleSnapshot();
+  return [
+    `You are the "Local Planning Assistant" in a web app. Current local time: ${now.toString()}.`,
+    'When a change is needed, include ONE <schedule_actions>...</schedule_actions> block containing a JSON object with optional "reply" and an "actions" array.',
+    'Supported actions (all dates/times MUST be local, no timezone suffix or Z):',
+    '- {"type":"todo.add","title":"Task","dueDate":"2025-12-04T18:00:00","startDate":"2025-12-04T17:00:00","priority":"high","durationMinutes":90}',
+    '- {"type":"todo.toggle","identifier":"Task title or id"}',
+    '- {"type":"assignment.setDuration","identifier":"Assignment title or id","durationMinutes":120}',
+    'Strict JSON rules: valid JSON only, no comments, no trailing commas, all fields quoted. If no change is needed, omit the block entirely.',
+    'Date rules: treat user-provided dates/times as local; DO NOT convert to UTC; DO NOT include timezone offsets or Z. Use "YYYY-MM-DDTHH:MM:SS".',
+    'Defaults: if date is implied as today, use today with a sensible time; if duration is unclear, omit durationMinutes.',
+    'Be concise in the visible reply.',
+    'Snapshot of current items:',
+    snapshot
+  ].join('\n');
+}
+
+function buildScheduleSnapshot() {
+  const maxItems = 8;
+  const tasks = state.tasks
+    .slice(0, maxItems)
+    .map((task, idx) => {
+      const due = task.due ? new Date(task.due) : null;
+      const dueLabel = due ? due.toISOString() : 'none';
+      const startLabel = task.start ? new Date(task.start).toISOString() : '';
+      const duration = task.estimatedDuration ?? 0;
+      return `${idx + 1}. ${task.isCompleted ? '✅' : '⏳'} ${task.title} · due ${dueLabel}${
+        startLabel ? ` · start ${startLabel}` : ''
+      } · priority ${task.priority ?? 3}${duration ? ` · est ${duration}m` : ''}`;
+    })
+    .join('\n');
+
+  const assignments = state.assignments
+    .slice(0, maxItems)
+    .map((assignment, idx) => {
+      const due = assignment.due ? new Date(assignment.due).toISOString() : 'none';
+      return `${idx + 1}. ${assignment.isCompleted ? '✅' : '📚'} ${assignment.title} · due ${due}${
+        assignment.estimatedDuration ? ` · est ${assignment.estimatedDuration}m` : ''
+      }`;
+    })
+    .join('\n');
+
+  const routines = state.routines
+    .slice(0, maxItems)
+    .map((routine, idx) => `${idx + 1}. ${routine.active !== false ? '🔁' : '⏸️'} ${routine.name}`)
+    .join('\n');
+
+  return `[Tasks]\n${tasks || 'None'}\n\n[Assignments]\n${assignments || 'None'}\n\n[Routines]\n${routines || 'None'}`;
+}
+
+async function sendOpenAIChat(latestMessage, apiKey) {
+  const history = [...state.assistantHistory];
+  const limited = history.slice(-12);
+  const messages = [{ role: 'system', content: buildSystemPrompt() }, ...limited.map((entry) => ({
+    role: entry.role === 'ai' ? 'assistant' : 'user',
+    content: entry.content
+  }))];
+
+  // Ensure the latest user input is present even if history is out of sync
+  if (!limited.length || limited[limited.length - 1].content !== latestMessage) {
+    messages.push({ role: 'user', content: latestMessage });
+  }
+
+  const payload = {
+    model: 'gpt-4o-mini',
+    temperature: 0.3,
+    messages
+  };
+
+  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const text = await response.text().catch(() => '');
+    throw new Error(text || `OpenAI request failed (${response.status})`);
+  }
+
+  const data = await response.json();
+  const content = data?.choices?.[0]?.message?.content ?? '';
+  const { replyText, actions } = extractScheduleActions(content);
+  return { replyText, actions };
+}
+
+async function applyScheduleActions(actions = []) {
+  const summaries = [];
+  let touchedTasks = false;
+  let touchedAssignments = false;
+
+  for (const action of actions) {
+    const type = (action.type || '').toLowerCase();
+    if (type === 'todo.add') {
+      const title = action.title?.trim();
+      if (!title) {
+        summaries.push('⚠️ Missing title for todo.add action.');
+        continue;
+      }
+      const due = parseAssistantDate(action.dueDate);
+      const start = parseAssistantDate(action.startDate);
+      const priority = mapPriorityValue(action.priority);
+      const duration = sanitizeDuration(action.durationMinutes);
+      await api.createTask({
+        title,
+        due,
+        start,
+        priority,
+        estimatedDuration: duration ?? undefined,
+        hasDeadline: Boolean(due)
+      });
+      summaries.push(`🆕 Added task "${title}"${due ? ` due ${due.toLocaleString()}` : ''}.`);
+      touchedTasks = true;
+    } else if (type === 'todo.toggle' || type === 'todo.complete') {
+      const identifier = action.identifier || action.title;
+      const target = findTaskByIdentifier(identifier);
+      if (!target) {
+        summaries.push(`⚠️ Could not find task matching "${identifier ?? 'unknown'}".`);
+        continue;
+      }
+      const nextState = !target.isCompleted;
+      await api.updateTask({ ...target, isCompleted: nextState });
+      summaries.push(`🔄 Marked "${target.title}" as ${nextState ? 'complete' : 'incomplete'}.`);
+      touchedTasks = true;
+    } else if (
+      type === 'assignment.setduration' ||
+      type === 'assignment.duration' ||
+      type === 'assignment.updateduration'
+    ) {
+      const identifier = action.identifier || action.title;
+      const target = findAssignmentByIdentifier(identifier);
+      if (!target) {
+        summaries.push(`⚠️ Could not find assignment matching "${identifier ?? 'unknown'}".`);
+        continue;
+      }
+      const duration = sanitizeDuration(action.durationMinutes);
+      await api.updateAssignment({ ...target, estimatedDuration: duration ?? 0 });
+      summaries.push(
+        duration
+          ? `⏱️ Set "${target.title}" duration to ${duration}m.`
+          : `⏱️ Cleared estimated duration for "${target.title}".`
+      );
+      touchedAssignments = true;
+    }
+  }
+
+  if (touchedTasks) {
+    await loadTasks();
+    await refreshSchedule();
+    await refreshInsights();
+  }
+  if (touchedAssignments) {
+    await loadAssignments();
+    await refreshSchedule();
+    await refreshInsights();
+  }
+
+  return summaries;
+}
+
+function extractScheduleActions(content = '') {
+  const start = content.indexOf('<schedule_actions>');
+  const end = content.indexOf('</schedule_actions>');
+  if (start === -1 || end === -1 || end <= start) {
+    return { replyText: content.trim(), actions: [] };
+  }
+  const rawJson = content.slice(start + '<schedule_actions>'.length, end).trim();
+  const cleanedText = (content.slice(0, start) + content.slice(end + '</schedule_actions>'.length)).trim();
+  let envelope = null;
+  try {
+    envelope = JSON.parse(rawJson);
+  } catch (error) {
+    // try to recover by wrapping braces if missing
+    try {
+      envelope = JSON.parse(rawJson.startsWith('{') ? rawJson : `{${rawJson}}`);
+    } catch (err) {
+      return { replyText: cleanedText || content.trim(), actions: [] };
+    }
+  }
+
+  const replyText = (envelope.reply ?? cleanedText ?? content).toString().trim();
+  const actions = Array.isArray(envelope.actions) ? envelope.actions : [];
+  return { replyText, actions };
+}
+
+function parseAssistantDate(value) {
+  if (!value) return null;
+  const trimmed = value.toString().trim();
+  const normalized = trimmed.replace(' ', 'T');
+  // Capture date/time and ignore any trailing timezone info to keep it local
+  const match = normalized.match(
+    /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2})(?::(\d{2}))?)?/
+  );
+  if (!match) return null;
+  const [, y, m, d, hh = '00', mm = '00', ss = '00'] = match;
+  const year = Number(y);
+  const month = Number(m) - 1;
+  const day = Number(d);
+  const hour = Number(hh);
+  const minute = Number(mm);
+  const second = Number(ss);
+  return new Date(year, month, day, hour, minute, second);
+}
+
+function mapPriorityValue(value) {
+  if (typeof value === 'number') return value;
+  if (!value) return 3;
+  const lowered = value.toString().toLowerCase();
+  if (lowered === 'low') return 2;
+  if (lowered === 'high') return 5;
+  return 3;
+}
+
+function sanitizeDuration(value) {
+  if (typeof value === 'number' && Number.isFinite(value) && value > 0) {
+    return Math.round(value);
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed) && parsed > 0) return Math.round(parsed);
+  }
+  return null;
+}
+
+function findTaskByIdentifier(identifier) {
+  if (!identifier) return null;
+  const trimmed = identifier.toString().trim().toLowerCase();
+  return (
+    state.tasks.find((task) => task.id === identifier) ||
+    state.tasks.find((task) => task.title?.toLowerCase().includes(trimmed))
+  );
+}
+
+function findAssignmentByIdentifier(identifier) {
+  if (!identifier) return null;
+  const trimmed = identifier.toString().trim().toLowerCase();
+  return (
+    state.assignments.find((assignment) => assignment.id === identifier) ||
+    state.assignments.find(
+      (assignment) =>
+        assignment.title?.toLowerCase().includes(trimmed) || assignment.course?.toLowerCase().includes(trimmed)
+    )
+  );
 }

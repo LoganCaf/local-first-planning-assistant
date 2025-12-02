@@ -1,210 +1,55 @@
 {
-  "tasks": [
+  "tasks": [],
+  "routines": [
     {
-      "id": "minzucgt-07f193",
-      "title": "sodjs",
-      "description": "sada",
-      "estimatedDuration": 60,
-      "tags": [
-        "school"
-      ],
-      "priority": 3,
-      "due": "2025-12-03T04:31:00.000Z",
-      "start": null,
-      "hasDeadline": true,
-      "hardDeadline": true,
-      "dependencies": [],
-      "projectId": null,
-      "goalId": null,
-      "location": null,
-      "travelMinutes": 0,
-      "history": [
+      "id": "D54063B7-D2DE-4D1B-9EAF-C9F401BFED8E",
+      "name": "Sds",
+      "blocks": [
         {
-          "startedAt": "2025-12-02T03:03:51.430Z",
-          "stoppedAt": "2025-12-02T04:00:55.875Z",
-          "note": null
+          "id": "mio7745s-s19w0w",
+          "start": "2025-12-08T16:28:00.000Z",
+          "end": "2025-12-08T17:28:00.000Z",
+          "context": "Sds",
+          "locked": false
         },
         {
-          "startedAt": "2025-12-02T04:01:01.823Z",
-          "stoppedAt": "2025-12-02T04:26:16.568Z",
-          "note": null
+          "id": "mio7745s-1d3xia",
+          "start": "2025-12-02T16:28:00.000Z",
+          "end": "2025-12-02T17:28:00.000Z",
+          "context": "Sds",
+          "locked": false
         },
         {
-          "startedAt": "2025-12-02T04:30:47.169Z",
-          "stoppedAt": "2025-12-02T04:30:49.579Z",
-          "note": null
+          "id": "mio7745s-v4mmvb",
+          "start": "2025-12-03T16:28:00.000Z",
+          "end": "2025-12-03T17:28:00.000Z",
+          "context": "Sds",
+          "locked": false
         },
         {
-          "startedAt": "2025-12-02T04:31:02.700Z",
-          "stoppedAt": "2025-12-02T04:31:16.562Z",
-          "note": null
+          "id": "mio7745s-mqwnb7",
+          "start": "2025-12-04T16:28:00.000Z",
+          "end": "2025-12-04T17:28:00.000Z",
+          "context": "Sds",
+          "locked": false
         },
         {
-          "startedAt": "2025-12-02T04:31:34.097Z",
-          "stoppedAt": "2025-12-02T04:31:37.677Z",
-          "note": null
-        },
-        {
-          "startedAt": "2025-12-02T04:37:10.912Z",
-          "stoppedAt": "2025-12-02T04:37:15.120Z",
-          "note": null
-        },
-        {
-          "startedAt": "2025-12-02T04:38:03.048Z",
-          "stoppedAt": "2025-12-02T04:40:35.132Z",
-          "note": null
-        },
-        {
-          "startedAt": "2025-12-02T04:44:09.834Z",
-          "stoppedAt": "2025-12-02T04:44:12.217Z",
-          "note": null
-        },
-        {
-          "startedAt": "2025-12-02T04:44:14.091Z",
-          "stoppedAt": "2025-12-02T04:44:14.825Z",
-          "note": null
+          "id": "mio7745s-65jowr",
+          "start": "2025-12-05T16:28:00.000Z",
+          "end": "2025-12-05T17:28:00.000Z",
+          "context": "Sds",
+          "locked": false
         }
       ],
-      "isCompleted": true,
-      "categoryWeights": {},
-      "createdAt": "2025-12-02T03:03:36.605Z",
-      "updatedAt": "2025-12-02T04:44:15.410Z"
-    },
-    {
-      "id": "mio31itr-ate5xc",
-      "title": "adadadsada",
-      "description": "asdasdasd",
-      "estimatedDuration": 60,
-      "tags": [],
-      "priority": 3,
-      "due": "2025-12-03T04:31:00.000Z",
-      "start": null,
-      "hasDeadline": true,
-      "hardDeadline": true,
-      "dependencies": [],
-      "projectId": null,
-      "goalId": null,
-      "location": null,
-      "travelMinutes": 0,
-      "history": [
-        {
-          "startedAt": "2025-12-02T04:33:14.396Z",
-          "stoppedAt": "2025-12-02T04:33:29.028Z",
-          "note": null
-        },
-        {
-          "startedAt": "2025-12-02T04:33:33.996Z",
-          "stoppedAt": "2025-12-02T04:47:50.561Z",
-          "note": null
-        }
-      ],
-      "isCompleted": true,
-      "categoryWeights": {},
-      "createdAt": "2025-12-02T04:33:10.287Z",
-      "updatedAt": "2025-12-02T04:47:50.561Z"
-    },
-    {
-      "id": "6C2C93B3-219B-4FA8-A79A-4E18A5888DFA",
-      "title": "Njnjnjn",
-      "description": "",
-      "estimatedDuration": 60,
-      "tags": [],
-      "priority": 3,
-      "due": "2025-12-02T05:15:00.000Z",
-      "start": null,
-      "hasDeadline": true,
-      "hardDeadline": true,
-      "dependencies": [],
-      "projectId": null,
-      "goalId": null,
-      "location": null,
-      "travelMinutes": 0,
-      "history": [],
-      "isCompleted": false,
-      "categoryWeights": {},
-      "createdAt": "2025-12-02T05:08:54.529Z",
-      "updatedAt": "2025-12-02T05:08:54.529Z"
-    },
-    {
-      "id": "14F12F37-9B41-4070-A084-20DAE3759271",
-      "title": "Bjbjbjbjbjjbj",
-      "description": "",
-      "estimatedDuration": 60,
-      "tags": [],
-      "priority": 3,
-      "due": "2025-12-02T05:17:00.000Z",
-      "start": null,
-      "hasDeadline": true,
-      "hardDeadline": true,
-      "dependencies": [],
-      "projectId": null,
-      "goalId": null,
-      "location": null,
-      "travelMinutes": 0,
-      "history": [],
-      "isCompleted": false,
-      "categoryWeights": {},
-      "createdAt": "2025-12-02T05:10:47.991Z",
-      "updatedAt": "2025-12-02T05:10:47.991Z"
+      "active": true,
+      "color": "#7A61FF",
+      "icon": "repeat",
+      "pauses": []
     }
   ],
-  "routines": [],
   "goals": [],
   "preferences": {},
-  "placements": [
-    {
-      "taskId": "minzucgt-07f193",
-      "title": "sodjs",
-      "start": "2025-12-01T13:00:00.000Z",
-      "end": "2025-12-01T14:00:00.000Z",
-      "location": null,
-      "metadata": {
-        "priority": 3,
-        "energyBand": "morning",
-        "due": "2025-12-03T04:31:00.000Z",
-        "goalId": null
-      }
-    },
-    {
-      "taskId": "mio31itr-ate5xc",
-      "title": "adadadsada",
-      "start": "2025-12-01T14:00:00.000Z",
-      "end": "2025-12-01T15:00:00.000Z",
-      "location": null,
-      "metadata": {
-        "priority": 3,
-        "energyBand": "morning",
-        "due": "2025-12-03T04:31:00.000Z",
-        "goalId": null
-      }
-    },
-    {
-      "taskId": "6C2C93B3-219B-4FA8-A79A-4E18A5888DFA",
-      "title": "Njnjnjn",
-      "start": "2025-12-01T15:00:00.000Z",
-      "end": "2025-12-01T16:00:00.000Z",
-      "location": null,
-      "metadata": {
-        "priority": 3,
-        "energyBand": "morning",
-        "due": "2025-12-02T05:15:00.000Z",
-        "goalId": null
-      }
-    },
-    {
-      "taskId": "14F12F37-9B41-4070-A084-20DAE3759271",
-      "title": "Bjbjbjbjbjjbj",
-      "start": "2025-12-01T16:00:00.000Z",
-      "end": "2025-12-01T17:00:00.000Z",
-      "location": null,
-      "metadata": {
-        "priority": 3,
-        "energyBand": "morning",
-        "due": "2025-12-02T05:17:00.000Z",
-        "goalId": null
-      }
-    }
-  ],
+  "placements": [],
   "conversationLog": [
     {
       "timestamp": "2025-10-26T14:38:34.731Z",
@@ -220,6 +65,56 @@
       "timestamp": "2025-12-01T23:21:09.416Z",
       "user": "what assignments are due december 2",
       "assistant": "Consider slotting this into your next focus block. Let me know if you need help scheduling it."
+    },
+    {
+      "timestamp": "2025-12-02T06:51:08.384Z",
+      "user": "what is due on dec 2\n\nContext snapshot:\nTodo: asdads — Due Dec 2, 2025, 11:45 PM — Priority 3 — Duration 60m\nAssignment: Module 7: Quiz - Clustering [81531.202580, 81560.202580, 82082.202580] — Due Dec 5, 2025, 12:00 PM — Duration 0m\nAssignment: Module 7: Homework - Unsupervised Learning [81531.202580, 81560.202580, 82082.202580] — Due Dec 7, 2025, 12:00 PM — Duration 0m\nAssignment: Collaborative Ethics Event and Recap [Fall 2025.SYGN502B.80637] — Due Dec 8, 2025, 12:00 PM — Duration 0m\nAssignment: Perspective Assignment [Fall 2025.SYGN502B.80637] — Due Dec 8, 2025, 12:00 PM — Duration 0m\nAssignment: Portfolio (Introduction Submission) [Fall 2025.SYGN502B.80637] — Due Dec 8, 2025, 12:00 PM — Duration 0m\nAssignment: Deliverable: Applied Data Science Project - Comprehensive Final Report [82078.202580, 82079.202580] — Due Dec 9, 2025, 12:00 PM — Duration 0m\nAssignment: Deliverable: Applied Data Science Project - Final Poster [82078.202580, 82079.202580] — Due Dec 9, 2025, 12:00 PM — Duration 0m\nAssignment: Deliverable: Applied Data Science Project - Final Presentation (Live Over Several Days) [82078.202580, 82079.202580] — Due Dec 9, 2025, 12:00 PM — Duration 0m",
+      "assistant": "I don't have the local model ready, but I suggest blocking at least 30 minutes to work on it.\n\nCaptured task: what is due on dec 2\n\nContext snapshot:\nTodo: asdads — Due Dec 2, 2025, 11:45... (due 1/2/2026, 11:45:00 PM)"
+    },
+    {
+      "timestamp": "2025-12-02T07:27:20.629Z",
+      "user": "hello\n\nContext snapshot:\nAssignment: Module 7: Quiz - Clustering [81531.202580, 81560.202580, 82082.202580] — Due Dec 5, 2025, 12:00 PM — Duration 0m\nAssignment: Module 7: Homework - Unsupervised Learning [81531.202580, 81560.202580, 82082.202580] — Due Dec 7, 2025, 12:00 PM — Duration 0m\nAssignment: Collaborative Ethics Event and Recap [Fall 2025.SYGN502B.80637] — Due Dec 8, 2025, 12:00 PM — Duration 0m\nAssignment: Perspective Assignment [Fall 2025.SYGN502B.80637] — Due Dec 8, 2025, 12:00 PM — Duration 0m\nAssignment: Portfolio (Introduction Submission) [Fall 2025.SYGN502B.80637] — Due Dec 8, 2025, 12:00 PM — Duration 0m\nAssignment: Deliverable: Applied Data Science Project - Comprehensive Final Report [82078.202580, 82079.202580] — Due Dec 9, 2025, 12:00 PM — Duration 0m\nAssignment: Deliverable: Applied Data Science Project - Final Poster [82078.202580, 82079.202580] — Due Dec 9, 2025, 12:00 PM — Duration 0m\nAssignment: Deliverable: Applied Data Science Project - Final Presentation (Live Over Several Days) [82078.202580, 82079.202580] — Due Dec 9, 2025, 12:00 PM — Duration 0m",
+      "assistant": "Consider slotting this into your next focus block. Let me know if you need help scheduling it.\n\nCaptured task: hello\n\nContext snapshot:\nAssignment: Module 7: Quiz - Clustering [81531.20258... (due 1/5/2026, 12:00:00 PM)"
+    },
+    {
+      "timestamp": "2025-12-02T07:27:30.730Z",
+      "user": "what is chatgpt\n\nContext snapshot:\nAssignment: Module 7: Quiz - Clustering [81531.202580, 81560.202580, 82082.202580] — Due Dec 5, 2025, 12:00 PM — Duration 0m\nAssignment: Module 7: Homework - Unsupervised Learning [81531.202580, 81560.202580, 82082.202580] — Due Dec 7, 2025, 12:00 PM — Duration 0m\nAssignment: Collaborative Ethics Event and Recap [Fall 2025.SYGN502B.80637] — Due Dec 8, 2025, 12:00 PM — Duration 0m\nAssignment: Perspective Assignment [Fall 2025.SYGN502B.80637] — Due Dec 8, 2025, 12:00 PM — Duration 0m\nAssignment: Portfolio (Introduction Submission) [Fall 2025.SYGN502B.80637] — Due Dec 8, 2025, 12:00 PM — Duration 0m\nAssignment: Deliverable: Applied Data Science Project - Comprehensive Final Report [82078.202580, 82079.202580] — Due Dec 9, 2025, 12:00 PM — Duration 0m\nAssignment: Deliverable: Applied Data Science Project - Final Poster [82078.202580, 82079.202580] — Due Dec 9, 2025, 12:00 PM — Duration 0m\nAssignment: Deliverable: Applied Data Science Project - Final Presentation (Live Over Several Days) [82078.202580, 82079.202580] — Due Dec 9, 2025, 12:00 PM — Duration 0m",
+      "assistant": "Consider slotting this into your next focus block. Let me know if you need help scheduling it.\n\nCaptured task: what is chatgpt\n\nContext snapshot:\nAssignment: Module 7: Quiz - Clustering [8... (due 1/5/2026, 12:00:00 PM)"
+    },
+    {
+      "timestamp": "2025-12-02T07:54:07.620Z",
+      "user": "hello",
+      "assistant": "Consider slotting this into your next focus block. Let me know if you need help scheduling it."
+    },
+    {
+      "timestamp": "2025-12-02T08:00:11.582Z",
+      "user": "what was the response",
+      "assistant": "Consider slotting this into your next focus block. Let me know if you need help scheduling it.\n\nCaptured task: what was the response (due No deadline set)"
+    },
+    {
+      "timestamp": "2025-12-02T08:00:22.831Z",
+      "user": "hello",
+      "assistant": "Consider slotting this into your next focus block. Let me know if you need help scheduling it."
+    },
+    {
+      "timestamp": "2025-12-02T08:02:23.037Z",
+      "user": "hello",
+      "assistant": "Consider slotting this into your next focus block. Let me know if you need help scheduling it."
+    },
+    {
+      "timestamp": "2025-12-02T08:02:32.357Z",
+      "user": "hello",
+      "assistant": "Consider slotting this into your next focus block. Let me know if you need help scheduling it."
+    },
+    {
+      "timestamp": "2025-12-02T08:02:42.415Z",
+      "user": "can you answer me a question",
+      "assistant": "Consider slotting this into your next focus block. Let me know if you need help scheduling it.\n\nCaptured task: can you answer me a question (due No deadline set)"
+    },
+    {
+      "timestamp": "2025-12-02T08:04:26.041Z",
+      "user": "hi",
+      "assistant": "Until the local model is configured, use the task form to capture this and regenerate your schedule."
     }
   ],
   "assignments": [

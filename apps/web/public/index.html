@@ -184,6 +184,18 @@
           <header class="view-header">
             <h2>Assistant</h2>
           </header>
+          <div class="form-card glass api-key-card">
+            <div class="field">
+              <label for="openai-key">OpenAI API key</label>
+              <input id="openai-key" type="password" placeholder="sk-..." autocomplete="off" />
+              <p class="hint">Key is stored only in this browser.</p>
+            </div>
+            <div class="button-row">
+              <button id="openai-key-save" class="primary-button" type="button">Save key</button>
+              <button id="openai-key-clear" class="ghost-button" type="button">Clear</button>
+            </div>
+            <p id="openai-key-status" class="hint" aria-live="polite"></p>
+          </div>
           <div class="chat-panel glass">
             <div id="assistant-log" class="assistant-log"></div>
             <form id="assistant-form" class="assistant-form">
