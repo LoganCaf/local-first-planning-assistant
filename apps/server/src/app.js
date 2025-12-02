@@ -506,6 +506,10 @@ async function handleAssistant(req, res, assistant, store) {
   const message = body.message ?? '';
   const history = Array.isArray(body.history) ? body.history : [];
   const result = await assistant.generateReply({ message, history });
+  const capture = maybeCaptureTaskFromMessage(message, store);
+  const reply = capture
+    ? `${result.content}\n\nCaptured task: ${capture.task.title} (due ${capture.prettyDue})`
+    : result.content;
 
   if (!store.state.conversationLog) {
     store.state.conversationLog = [];
@@ -513,14 +517,14 @@ async function handleAssistant(req, res, assistant, store) {
   store.state.conversationLog.push({
     timestamp: new Date().toISOString(),
     user: message,
-    assistant: result.content
+    assistant: reply
   });
   if (store.state.conversationLog.length > 200) {
     store.state.conversationLog.shift();
   }
   store.save();
 
-  respondJson(res, { reply: result.content });
+  respondJson(res, { reply });
 }
 
 async function handleNotifications(res, store, notificationSettings) {
@@ -576,6 +580,194 @@ export const __handlers = {
   handleEscalations,
   handleAssistant
 };
+
+function maybeCaptureTaskFromMessage(message, store) {
+  if (!message || typeof message !== 'string') return null;
+  const lower = message.toLowerCase();
+  const hasDeadlineHint = /due|deadline|by|on|submit|exam|test|quiz|assignment|project/.test(lower);
+  if (!hasDeadlineHint) return null;
+
+  const due = deriveDueDate(message, new Date());
+  const titleMatch = message.match(/have\s+(?:an?\s+)?([^.,;]+?)(?:\s+due|\s+by|\s+on|\s+tomorrow|\s+tonight|\s+tmr)/i);
+  const rawTitle = titleMatch?.[1]?.trim() || message.trim();
+  const title = rawTitle.length > 80 ? `${rawTitle.slice(0, 77)}...` : rawTitle;
+
+  store.state.tasks = store.state.tasks ?? [];
+  const existing = store.state.tasks.find(
+    (t) => t.title?.toLowerCase() === title.toLowerCase() && due && sameDay(t.due, due)
+  );
+  if (existing) return null;
+
+  const task = createTask({
+    title,
+    due: due ?? defaultDueDate(new Date()),
+    hasDeadline: true,
+    estimatedDuration: 90,
+    priority: 4
+  });
+  store.upsert('tasks', task);
+  const prettyDue = due ? new Date(due).toLocaleString() : 'No deadline set';
+  return { task, prettyDue };
+}
+
+function deriveDueDate(message, now) {
+  const lower = message.toLowerCase();
+  let due = parseExplicitDate(message, now);
+
+  if (!due) {
+    if (/tomorrow|tomorow|tommorow|tmr/.test(lower)) {
+      due = new Date(now);
+      due.setDate(now.getDate() + 1);
+    } else if (lower.includes('tonight') || lower.includes('today') || lower.includes('due') || lower.includes('by')) {
+      due = new Date(now);
+    }
+  }
+
+  if (!due) return null;
+
+  let hours = 17;
+  let minutes = 0;
+  if (lower.includes('night') || lower.includes('tonight')) {
+    hours = 21;
+  }
+  if (lower.includes('evening')) {
+    hours = 19;
+  }
+  if (lower.includes('afternoon')) {
+    hours = 15;
+  }
+  if (lower.includes('morning')) {
+    hours = 9;
+  }
+  if (lower.includes('midnight')) {
+    hours = 23;
+    minutes = 59;
+  }
+
+  const explicit = parseTimeFromMessage(message);
+  if (explicit) {
+    hours = explicit.hours;
+    minutes = explicit.minutes;
+  }
+
+  due.setHours(hours, minutes, 0, 0);
+  return due;
+}
+
+function parseTimeFromMessage(message) {
+  if (!message) return null;
+  const patterns = [
+    /(?:at|@)\s*(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?|am|pm|a|p)?/i,
+    /\b(\d{1,2})(?::(\d{2}))\s*(a\.?m\.?|p\.?m\.?|am|pm|a|p)?\b/i,
+    /\b(\d{1,2})\s*(a\.?m\.?|p\.?m\.?|am|pm|a|p)\b/i
+  ];
+  for (const pattern of patterns) {
+    const match = message.match(pattern);
+    if (!match) continue;
+    const rawHour = Number(match[1]);
+    const rawMinutes = match[2] ? Number(match[2]) : 0;
+    const meridiem = match[3]?.toLowerCase();
+    if (Number.isNaN(rawHour) || rawHour > 24) continue;
+    let hours = rawHour;
+    if (meridiem === 'pm' && rawHour < 12) hours += 12;
+    if (meridiem === 'am' && rawHour === 12) hours = 0;
+    if (!meridiem && hours === 24) hours = 0;
+    const minutes = Number.isNaN(rawMinutes) ? 0 : rawMinutes;
+    return { hours, minutes };
+  }
+  return null;
+}
+
+function parseExplicitDate(message, now) {
+  if (!message) return null;
+  const monthNames = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'sept', 'oct', 'nov', 'dec'];
+  const monthPattern = new RegExp(`\\b(${monthNames.join('|')})\\s+(\\d{1,2})(?:\\s*,?\\s*(\\d{4}))?`, 'i');
+  const numericPattern = /\b(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{2,4}))?\b/;
+  const weekdayPattern = /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)\b/i;
+
+  const monthMatch = message.match(monthPattern);
+  if (monthMatch) {
+    const monthIndex = monthNames.indexOf(monthMatch[1].toLowerCase().slice(0, 3));
+    const day = Number(monthMatch[2]);
+    const year = monthMatch[3] ? Number(monthMatch[3]) : now.getFullYear();
+    const date = new Date(year, monthIndex, day);
+    if (Number.isNaN(date.getTime())) return null;
+    if (date < now) {
+      date.setFullYear(date.getFullYear() + 1);
+    }
+    return date;
+  }
+
+  const numericMatch = message.match(numericPattern);
+  if (numericMatch) {
+    const month = Number(numericMatch[1]);
+    const day = Number(numericMatch[2]);
+    let year = numericMatch[3] ? Number(numericMatch[3]) : now.getFullYear();
+    if (year < 100) year += 2000;
+    const date = new Date(year, month - 1, day);
+    if (Number.isNaN(date.getTime())) return null;
+    if (date < now) {
+      date.setFullYear(date.getFullYear() + 1);
+    }
+    return date;
+  }
+
+  const weekdayMatch = message.match(weekdayPattern);
+  if (weekdayMatch) {
+    const target = normalizeWeekday(weekdayMatch[1]);
+    const date = nextWeekday(now, target);
+    return date;
+  }
+
+  return null;
+}
+
+function normalizeWeekday(label) {
+  const map = {
+    mon: 1,
+    monday: 1,
+    tue: 2,
+    tues: 2,
+    tuesday: 2,
+    wed: 3,
+    wednesday: 3,
+    thu: 4,
+    thur: 4,
+    thurs: 4,
+    thursday: 4,
+    fri: 5,
+    friday: 5,
+    sat: 6,
+    saturday: 6,
+    sun: 0,
+    sunday: 0
+  };
+  return map[label.toLowerCase()] ?? null;
+}
+
+function nextWeekday(now, targetDay) {
+  if (targetDay === null || targetDay === undefined) return null;
+  const date = new Date(now);
+  const currentDay = date.getDay();
+  let offset = (targetDay - currentDay + 7) % 7;
+  if (offset === 0) offset = 7;
+  date.setDate(date.getDate() + offset);
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+function defaultDueDate(now) {
+  const due = new Date(now);
+  due.setDate(due.getDate() + 1);
+  due.setHours(17, 0, 0, 0);
+  return due;
+}
+
+function sameDay(a, b) {
+  if (!a || !b) return false;
+  const da = new Date(a);
+  const db = new Date(b);
+  return da.getFullYear() === db.getFullYear() && da.getMonth() === db.getMonth() && da.getDate() === db.getDate();
+}
 
 function parseDurationFromDescription(text = '') {
   const hoursMatch = text.match(/(\d+(?:\.\d+)?)\s*hour/i);

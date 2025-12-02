@@ -1,9 +1,264 @@
 {
-  "tasks": [],
-  "routines": [],
+  "tasks": [
+    {
+      "id": "minw2k0f-5hq50j",
+      "title": "test",
+      "description": "",
+      "estimatedDuration": 90,
+      "tags": [],
+      "priority": 4,
+      "due": null,
+      "start": null,
+      "hasDeadline": false,
+      "hardDeadline": false,
+      "dependencies": [],
+      "projectId": null,
+      "goalId": null,
+      "location": null,
+      "travelMinutes": 0,
+      "history": [],
+      "isCompleted": true,
+      "categoryWeights": {},
+      "createdAt": "2025-12-02T01:18:01.167Z",
+      "updatedAt": "2025-12-02T01:38:49.008Z"
+    },
+    {
+      "id": "minw98pu-xwm2vi",
+      "title": "test",
+      "description": "",
+      "estimatedDuration": 90,
+      "tags": [],
+      "priority": 4,
+      "due": "2025-12-03T00:00:00.000Z",
+      "start": null,
+      "hasDeadline": true,
+      "hardDeadline": true,
+      "dependencies": [],
+      "projectId": null,
+      "goalId": null,
+      "location": null,
+      "travelMinutes": 0,
+      "history": [],
+      "isCompleted": true,
+      "categoryWeights": {},
+      "createdAt": "2025-12-02T01:23:13.122Z",
+      "updatedAt": "2025-12-02T01:38:14.747Z"
+    },
+    {
+      "id": "minwd30l-213v6l",
+      "title": "test",
+      "description": "",
+      "estimatedDuration": 90,
+      "tags": [],
+      "priority": 4,
+      "due": "2025-12-02T01:00:00.000Z",
+      "start": null,
+      "hasDeadline": true,
+      "hardDeadline": true,
+      "dependencies": [],
+      "projectId": null,
+      "goalId": null,
+      "location": null,
+      "travelMinutes": 0,
+      "history": [],
+      "isCompleted": true,
+      "categoryWeights": {},
+      "createdAt": "2025-12-02T01:26:12.357Z",
+      "updatedAt": "2025-12-02T01:38:13.666Z"
+    },
+    {
+      "id": "minwjb4b-qcnwo3",
+      "title": "Final on Friday at 2pm",
+      "description": "",
+      "estimatedDuration": 90,
+      "tags": [],
+      "priority": 4,
+      "due": "2025-12-05T21:00:00.000Z",
+      "start": null,
+      "hasDeadline": true,
+      "hardDeadline": true,
+      "dependencies": [],
+      "projectId": null,
+      "goalId": null,
+      "location": null,
+      "travelMinutes": 0,
+      "history": [],
+      "isCompleted": true,
+      "categoryWeights": {},
+      "createdAt": "2025-12-02T01:31:02.795Z",
+      "updatedAt": "2025-12-02T01:38:12.506Z"
+    },
+    {
+      "id": "minwvn5t-e3sfg0",
+      "title": "calc",
+      "description": "",
+      "estimatedDuration": 3600,
+      "tags": [],
+      "priority": 5,
+      "due": "2025-12-01T21:22:00.000Z",
+      "start": "2025-12-01T15:00:00.000Z",
+      "hasDeadline": true,
+      "hardDeadline": true,
+      "dependencies": [],
+      "projectId": null,
+      "goalId": null,
+      "location": null,
+      "travelMinutes": 0,
+      "history": [],
+      "isCompleted": true,
+      "categoryWeights": {},
+      "createdAt": "2025-12-02T01:40:38.273Z",
+      "updatedAt": "2025-12-02T01:40:58.218Z"
+    }
+  ],
+  "routines": [
+    {
+      "id": "minwlngk-ddba4r",
+      "name": "mornings",
+      "blocks": [
+        {
+          "id": "minwlngk-rnjefl",
+          "start": "2024-01-01T15:00:00.000Z",
+          "end": "2024-01-01T16:00:00.000Z",
+          "context": "mornings",
+          "locked": false
+        },
+        {
+          "id": "minwlngk-deljs5",
+          "start": "2024-01-02T15:00:00.000Z",
+          "end": "2024-01-02T16:00:00.000Z",
+          "context": "mornings",
+          "locked": false
+        },
+        {
+          "id": "minwlngk-3n252p",
+          "start": "2024-01-03T15:00:00.000Z",
+          "end": "2024-01-03T16:00:00.000Z",
+          "context": "mornings",
+          "locked": false
+        },
+        {
+          "id": "minwlngk-t49v76",
+          "start": "2024-01-04T15:00:00.000Z",
+          "end": "2024-01-04T16:00:00.000Z",
+          "context": "mornings",
+          "locked": false
+        },
+        {
+          "id": "minwlngk-f7sxaa",
+          "start": "2024-01-05T15:00:00.000Z",
+          "end": "2024-01-05T16:00:00.000Z",
+          "context": "mornings",
+          "locked": false
+        }
+      ],
+      "active": true,
+      "color": "#0e5fc4",
+      "icon": "🔁",
+      "pauses": []
+    },
+    {
+      "id": "minwmh34-k2qzp6",
+      "name": "sleep",
+      "blocks": [
+        {
+          "id": "minwmh34-r1yv3r",
+          "start": "2024-01-02T05:00:00.000Z",
+          "end": "2024-01-02T15:00:00.000Z",
+          "context": "sleep",
+          "locked": false
+        },
+        {
+          "id": "minwmh34-apgvup",
+          "start": "2024-01-03T05:00:00.000Z",
+          "end": "2024-01-03T15:00:00.000Z",
+          "context": "sleep",
+          "locked": false
+        },
+        {
+          "id": "minwmh34-spf1tr",
+          "start": "2024-01-04T05:00:00.000Z",
+          "end": "2024-01-04T15:00:00.000Z",
+          "context": "sleep",
+          "locked": false
+        },
+        {
+          "id": "minwmh34-2p74lb",
+          "start": "2024-01-05T05:00:00.000Z",
+          "end": "2024-01-05T15:00:00.000Z",
+          "context": "sleep",
+          "locked": false
+        },
+        {
+          "id": "minwmh34-k6gvrh",
+          "start": "2024-01-06T05:00:00.000Z",
+          "end": "2024-01-06T15:00:00.000Z",
+          "context": "sleep",
+          "locked": false
+        }
+      ],
+      "active": true,
+      "color": "#60a5fa",
+      "icon": "🔁",
+      "pauses": []
+    }
+  ],
   "goals": [],
   "preferences": {},
-  "placements": [],
+  "placements": [
+    {
+      "taskId": "minw98pu-xwm2vi",
+      "title": "test",
+      "start": "2025-12-01T13:00:00.000Z",
+      "end": "2025-12-01T14:30:00.000Z",
+      "location": null,
+      "metadata": {
+        "priority": 4,
+        "energyBand": "morning",
+        "due": "2025-12-03T00:00:00.000Z",
+        "goalId": null
+      }
+    },
+    {
+      "taskId": "minwd30l-213v6l",
+      "title": "test",
+      "start": "2025-12-01T16:00:00.000Z",
+      "end": "2025-12-01T17:30:00.000Z",
+      "location": null,
+      "metadata": {
+        "priority": 4,
+        "energyBand": "morning",
+        "due": "2025-12-02T01:00:00.000Z",
+        "goalId": null
+      }
+    },
+    {
+      "taskId": "minwjb4b-qcnwo3",
+      "title": "Final on Friday at 2pm",
+      "start": "2025-12-01T17:30:00.000Z",
+      "end": "2025-12-01T19:00:00.000Z",
+      "location": null,
+      "metadata": {
+        "priority": 4,
+        "energyBand": "morning",
+        "due": "2025-12-05T21:00:00.000Z",
+        "goalId": null
+      }
+    },
+    {
+      "taskId": "minw2k0f-5hq50j",
+      "title": "test",
+      "start": "2025-12-01T19:00:00.000Z",
+      "end": "2025-12-01T20:30:00.000Z",
+      "location": null,
+      "metadata": {
+        "priority": 4,
+        "energyBand": "afternoon",
+        "due": null,
+        "goalId": null
+      }
+    }
+  ],
   "conversationLog": [
     {
       "timestamp": "2025-10-26T14:38:34.731Z",
@@ -19,6 +274,81 @@
       "timestamp": "2025-12-01T23:21:09.416Z",
       "user": "what assignments are due december 2",
       "assistant": "Consider slotting this into your next focus block. Let me know if you need help scheduling it."
+    },
+    {
+      "timestamp": "2025-12-02T00:51:50.273Z",
+      "user": "hello",
+      "assistant": "Consider slotting this into your next focus block. Let me know if you need help scheduling it."
+    },
+    {
+      "timestamp": "2025-12-02T00:52:10.467Z",
+      "user": "i have an assignment due at noon tomorow",
+      "assistant": "I don't have the local model ready, but I suggest blocking at least 30 minutes to work on it."
+    },
+    {
+      "timestamp": "2025-12-02T00:52:23.303Z",
+      "user": "hg",
+      "assistant": "I don't have the local model ready, but I suggest blocking at least 30 minutes to work on it."
+    },
+    {
+      "timestamp": "2025-12-02T01:00:00.294Z",
+      "user": "hi",
+      "assistant": "Until the local model is configured, use the task form to capture this and regenerate your schedule."
+    },
+    {
+      "timestamp": "2025-12-02T01:00:02.939Z",
+      "user": "hi",
+      "assistant": "Until the local model is configured, use the task form to capture this and regenerate your schedule."
+    },
+    {
+      "timestamp": "2025-12-02T01:02:13.972Z",
+      "user": "hi",
+      "assistant": "Until the local model is configured, use the task form to capture this and regenerate your schedule."
+    },
+    {
+      "timestamp": "2025-12-02T01:10:02.217Z",
+      "user": "i have a test due at midnight",
+      "assistant": "Until the local model is configured, use the task form to capture this and regenerate your schedule."
+    },
+    {
+      "timestamp": "2025-12-02T01:13:53.619Z",
+      "user": "hi",
+      "assistant": "Hello there! How can I assist you today? Let me know if you need help with scheduling, organizing tasks, or anything else related to productivity."
+    },
+    {
+      "timestamp": "2025-12-02T01:14:34.356Z",
+      "user": "i have a test due tomorrow night",
+      "assistant": "Alright, let's get organized. Here's a suggested study plan for the next few hours:\n\n1. Review and understand the most important concepts: Spend the next few hours reviewing the topics that you feel are most critical for the test. Make sure you understand the key concepts and can explain them in your own words.\n2. Practice problems: Work through practice problems related to the topics you've reviewed. This will help reinforce your understanding and identify any areas where you might need additional help.\n3. Study breaks: Take short breaks every 45-60 minutes to rest your brain. Get up, stretch, and take a short walk if possible.\n4. Review notes and materials: Go through any notes, textbook sections, or other resources that cover the test material. Summarize the key points in your own words to help cement the information in your memory.\n5. Practice tests:"
+    },
+    {
+      "timestamp": "2025-12-02T01:18:01.170Z",
+      "user": "i have a test due tommorow",
+      "assistant": "Prioritize studying for your test tomorrow. Create a study schedule and focus on key topics. Try to review all the necessary material and practice sample questions. If possible, seek help from classmates or a tutor for areas where you're struggling. Good luck!\n\nCaptured task: test (due No deadline set)"
+    },
+    {
+      "timestamp": "2025-12-02T01:23:13.131Z",
+      "user": "i have a test due tommorow at 6pm",
+      "assistant": "Prioritize studying for the test today. Break down the material into smaller sections and review each one. Take regular breaks to avoid burnout. If possible, practice sample questions related to the test subject. Good luck on your exam!\n\nCaptured task: test (due 12/2/2025, 5:00:00 PM)"
+    },
+    {
+      "timestamp": "2025-12-02T01:25:40.265Z",
+      "user": "i have a test due tommorow at 6pm",
+      "assistant": "Review your study materials for the test, prioritize key topics, and practice sample questions. Plan to study for at least 2-3 hours today and review again tomorrow morning to ensure thorough preparation. Good luck!"
+    },
+    {
+      "timestamp": "2025-12-02T01:26:12.366Z",
+      "user": "i have a test due friday at 6pm",
+      "assistant": "Plan your study schedule as follows:\n\n1. Review the course materials and identify key topics to focus on.\n2. Divide your study time evenly over the next three days, focusing on one topic per day.\n3. Allocate at least 2-3 hours per day for studying.\n4. Practice sample questions to reinforce your understanding of the topics.\n5. Review and revise your notes each day before moving on to the next topic.\n6. On Thursday, do a comprehensive review of all the topics covered.\n7. On Friday, focus on last-minute review and relaxation to reduce stress.\n8. Plan to arrive early at the test venue to avoid any delays.\n9. Good luck on your test!\n\nCaptured task: test (due 12/1/2025, 6:00:00 PM)"
+    },
+    {
+      "timestamp": "2025-12-02T01:27:04.231Z",
+      "user": "i have a test due wednesday night",
+      "assistant": "Plan your study schedule as follows:\n\n1. Review the course materials and identify key topics to focus on.\n2. Divide your study time evenly over the next three days, focusing on one topic per day.\n3. Allocate at least 2-3 hours per day for studying.\n4. Practice sample questions to reinforce your understanding of the topics.\n5. Review and revise your notes each day before moving on to the next topic.\n6. On Tuesday, do a comprehensive review of all the topics covered.\n7. On Wednesday, focus on last-minute review and relaxation to reduce stress.\n8. Plan to arrive early at the test venue to avoid any delays.\n9. Good luck on your test!"
+    },
+    {
+      "timestamp": "2025-12-02T01:31:02.805Z",
+      "user": "Final on Friday at 2pm",
+      "assistant": "I will schedule your final meeting for this week on Friday at 2 PM. Let me know if there are any changes or additional information needed for the meeting.\n\nCaptured task: Final on Friday at 2pm (due 12/5/2025, 2:00:00 PM)"
     }
   ],
   "assignments": [
@@ -29,13 +359,16 @@
       "course": "Fall 2025.SYGN502B.80637",
       "location": "Berthoud 206",
       "url": "https://elearning.mines.edu/calendar?include_contexts=course_75170&month=09&year=2025#calendar_event_170735",
+      "start": null,
       "due": null,
       "end": null,
       "allDay": false,
+      "hasDeadline": true,
       "estimatedDuration": 0,
-      "isCompleted": false,
+      "isCompleted": true,
+      "history": [],
       "createdAt": "2025-11-26T19:25:54.355Z",
-      "updatedAt": "2025-11-26T19:25:54.355Z",
+      "updatedAt": "2025-12-02T01:38:23.231Z",
       "source": "user_Amn7tDO3I65L17MwbcItRmNxJId33cwsrbvEYGCF.ics"
     },
     {
@@ -509,13 +842,16 @@
       "course": "82078.202580, 82079.202580",
       "location": "",
       "url": "https://elearning.mines.edu/calendar?include_contexts=course_76742&month=09&year=2025#assignment_504573",
+      "start": null,
       "due": null,
       "end": null,
       "allDay": false,
+      "hasDeadline": true,
       "estimatedDuration": 0,
-      "isCompleted": false,
+      "isCompleted": true,
+      "history": [],
       "createdAt": "2025-11-26T19:25:54.366Z",
-      "updatedAt": "2025-11-26T19:25:54.366Z",
+      "updatedAt": "2025-12-02T01:38:24.616Z",
       "source": "user_Amn7tDO3I65L17MwbcItRmNxJId33cwsrbvEYGCF.ics"
     },
     {

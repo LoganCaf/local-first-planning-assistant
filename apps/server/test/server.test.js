@@ -104,3 +104,137 @@ test('task lifecycle via handlers', async () => {
   assert.equal(assistantRes.getStatus(), 200);
   assert.match(assistantRes.getBody().reply, /prioritizing/i);
 });
+
+test('assistant captures deadline tasks from chat input', async () => {
+  const store = new InMemoryDataStore('apps/server/test/tmp-db.json');
+  store.state = { tasks: [], goals: [], routines: [], placements: [] };
+  const now = new Date();
+  const expectedDue = nextRelativeDate(now, 1, 21, 0);
+
+  const assistant = new MockAssistant('Captured your request.');
+  const assistantReq = createRequest('POST', '/api/assistant', {
+    message: 'I have a test due tommorow night',
+    history: []
+  });
+  const assistantRes = createResponse();
+  await __handlers.handleAssistant(assistantReq, assistantRes, assistant, store);
+
+  assert.equal(assistantRes.getStatus(), 200);
+  const reply = assistantRes.getBody().reply;
+  assert.match(reply, /Captured task/i);
+  assert.equal(store.state.tasks.length, 1);
+  const task = store.state.tasks[0];
+  assert.equal(task.title.toLowerCase(), 'test');
+  assert.ok(task.due);
+  const due = new Date(task.due);
+  assert.equal(due.getFullYear(), expectedDue.getFullYear());
+  assert.equal(due.getMonth(), expectedDue.getMonth());
+  assert.equal(due.getDate(), expectedDue.getDate());
+  assert.equal(due.getHours(), 21);
+  assert.equal(due.getMinutes(), 0);
+});
+
+test('assistant captures midnight deadline', async () => {
+  const store = new InMemoryDataStore('apps/server/test/tmp-db.json');
+  store.state = { tasks: [], goals: [], routines: [], placements: [] };
+  const assistant = new MockAssistant('Captured your request.');
+  const assistantReq = createRequest('POST', '/api/assistant', {
+    message: 'Essay due at midnight',
+    history: []
+  });
+  const assistantRes = createResponse();
+  await __handlers.handleAssistant(assistantReq, assistantRes, assistant, store);
+
+  assert.equal(store.state.tasks.length, 1);
+  const task = store.state.tasks[0];
+  assert.match(task.title.toLowerCase(), /essay/);
+  assert.ok(task.due);
+  const due = new Date(task.due);
+  assert.equal(due.getHours(), 23);
+  assert.equal(due.getMinutes(), 59);
+});
+
+test('assistant captures tmr evening deadline', async () => {
+  const store = new InMemoryDataStore('apps/server/test/tmp-db.json');
+  store.state = { tasks: [], goals: [], routines: [], placements: [] };
+  const assistant = new MockAssistant('Captured your request.');
+  const assistantReq = createRequest('POST', '/api/assistant', {
+    message: 'Project update due tmr evening',
+    history: []
+  });
+  const assistantRes = createResponse();
+  await __handlers.handleAssistant(assistantReq, assistantRes, assistant, store);
+
+  assert.equal(store.state.tasks.length, 1);
+  const task = store.state.tasks[0];
+  assert.match(task.title.toLowerCase(), /project update/);
+  assert.ok(task.due);
+  const due = new Date(task.due);
+  assert.equal(due.getHours(), 19);
+  assert.equal(due.getMinutes(), 0);
+});
+
+test('assistant captures explicit time', async () => {
+  const store = new InMemoryDataStore('apps/server/test/tmp-db.json');
+  store.state = { tasks: [], goals: [], routines: [], placements: [] };
+  const assistant = new MockAssistant('Captured your request.');
+  const assistantReq = createRequest('POST', '/api/assistant', {
+    message: 'I have a test due tomorrow at 6pm',
+    history: []
+  });
+  const assistantRes = createResponse();
+  await __handlers.handleAssistant(assistantReq, assistantRes, assistant, store);
+
+  assert.equal(store.state.tasks.length, 1);
+  const task = store.state.tasks[0];
+  assert.match(task.title.toLowerCase(), /test/);
+  assert.ok(task.due);
+  const due = new Date(task.due);
+  assert.equal(due.getHours(), 18);
+  assert.equal(due.getMinutes(), 0);
+});
+
+test('assistant captures weekday without explicit due keyword', async () => {
+  const store = new InMemoryDataStore('apps/server/test/tmp-db.json');
+  store.state = { tasks: [], goals: [], routines: [], placements: [] };
+  const assistant = new MockAssistant('Captured your request.');
+  const assistantReq = createRequest('POST', '/api/assistant', {
+    message: 'Final on Friday at 2pm',
+    history: []
+  });
+  const assistantRes = createResponse();
+  await __handlers.handleAssistant(assistantReq, assistantRes, assistant, store);
+
+  assert.equal(store.state.tasks.length, 1);
+  const task = store.state.tasks[0];
+  assert.match(task.title.toLowerCase(), /final/);
+  const due = new Date(task.due);
+  assert.equal(due.getHours(), 14);
+  assert.equal(due.getMinutes(), 0);
+});
+
+test('assistant captures month/day date', async () => {
+  const store = new InMemoryDataStore('apps/server/test/tmp-db.json');
+  store.state = { tasks: [], goals: [], routines: [], placements: [] };
+  const assistant = new MockAssistant('Captured your request.');
+  const assistantReq = createRequest('POST', '/api/assistant', {
+    message: 'Assignment due Nov 14 8am',
+    history: []
+  });
+  const assistantRes = createResponse();
+  await __handlers.handleAssistant(assistantReq, assistantRes, assistant, store);
+
+  assert.equal(store.state.tasks.length, 1);
+  const task = store.state.tasks[0];
+  assert.match(task.title.toLowerCase(), /assignment/);
+  const due = new Date(task.due);
+  assert.equal(due.getHours(), 8);
+  assert.equal(due.getMinutes(), 0);
+});
+
+function nextRelativeDate(now, days, hours, minutes) {
+  const date = new Date(now);
+  date.setDate(date.getDate() + days);
+  date.setHours(hours, minutes, 0, 0);
+  return date;
+}

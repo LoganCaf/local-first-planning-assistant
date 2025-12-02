@@ -1,21 +1,10 @@
 import { readFileSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
-function loadConfig(customPath) {
-  const locations = [customPath, resolve('config/local-llm.json')].filter(Boolean);
-  for (const location of locations) {
-    try {
-      if (location && existsSync(location)) {
-        const raw = readFileSync(location, 'utf-8');
-        return JSON.parse(raw);
-      }
-    } catch (error) {
-      console.warn(`Failed to load LLM config from ${location}:`, error.message);
-    }
-  }
-  return {};
-}
+const moduleDir = dirname(fileURLToPath(import.meta.url));
+const repoRoot = resolve(moduleDir, '../../..');
 
 function buildPrompt(message, history = [], systemPrompt) {
   const promptParts = [];
@@ -33,8 +22,29 @@ function buildPrompt(message, history = [], systemPrompt) {
 export class LocalAssistant {
   constructor(options = {}) {
     const config = loadConfig(options.configPath);
-    this.modelPath = resolve(options.modelPath ?? config.modelPath ?? './model.gguf');
-    this.binaryPath = resolve(options.binaryPath ?? config.binaryPath ?? './llama-cli');
+
+    this.modelPath =
+      findExisting([
+        options.modelPath,
+        config.modelPath,
+        resolve(repoRoot, 'Mistral-7B-Instruct-v0.3.Q4_K_M.gguf'),
+        resolve(process.cwd(), 'Mistral-7B-Instruct-v0.3.Q4_K_M.gguf'),
+        resolve(process.cwd(), '../Mistral-7B-Instruct-v0.3.Q4_K_M.gguf'),
+        resolve(moduleDir, '../../Mistral-7B-Instruct-v0.3.Q4_K_M.gguf'),
+        resolve(process.cwd(), 'model.gguf')
+      ]) ?? resolve(process.cwd(), 'model.gguf');
+
+    this.binaryPath =
+      findExisting([
+        options.binaryPath,
+        config.binaryPath,
+        resolve(repoRoot, 'bin/llama-cli'),
+        resolve(process.cwd(), 'bin/llama-cli'),
+        resolve(process.cwd(), '../bin/llama-cli'),
+        resolve(moduleDir, '../../bin/llama-cli'),
+        resolve(process.cwd(), 'llama-cli')
+      ]) ?? resolve(process.cwd(), 'llama-cli');
+
     this.maxTokens = options.maxTokens ?? config.maxTokens ?? 192;
     this.temperature = options.temperature ?? config.temperature ?? 0.7;
     this.topP = options.topP ?? config.topP ?? 0.9;
@@ -127,4 +137,38 @@ function hashCode(input) {
 
 export function buildPromptPreview(message, history, systemPrompt) {
   return buildPrompt(message, history, systemPrompt);
+}
+
+function loadConfig(customPath) {
+  const candidates = [
+    customPath,
+    resolve(process.cwd(), 'config/local-llm.json'),
+    resolve(process.cwd(), '../config/local-llm.json'),
+    resolve(moduleDir, '../../config/local-llm.json'),
+    resolve(repoRoot, 'config/local-llm.json')
+  ].filter(Boolean);
+
+  for (const location of candidates) {
+    try {
+      if (location && existsSync(location)) {
+        const raw = readFileSync(location, 'utf-8');
+        return JSON.parse(raw);
+      }
+    } catch (error) {
+      console.warn(`Failed to load LLM config from ${location}:`, error.message);
+    }
+  }
+  return {};
+}
+
+function findExisting(paths) {
+  for (const maybe of paths) {
+    if (!maybe) continue;
+    try {
+      if (existsSync(maybe)) return maybe;
+    } catch (error) {
+      // ignore
+    }
+  }
+  return null;
 }

@@ -56,12 +56,12 @@ export function buildAvailabilityGrid(routines, anchorDate = new Date(), options
  */
 export function generateSchedule(tasks, routines = [], options = {}) {
   const config = { ...defaultSchedulingOptions, ...options };
-  const now = new Date();
-  const availability = buildAvailabilityGrid(routines, now, config);
+  const anchorDate = stripTime(options.anchorDate ?? new Date());
+  const availability = buildAvailabilityGrid(routines, anchorDate, config);
   const sortedTasks = [...tasks]
     .map((task) => ({
       task,
-      score: scoreTask(task, now, config)
+      score: scoreTask(task, anchorDate, config)
     }))
     .sort((a, b) => b.score - a.score);
 
@@ -70,7 +70,7 @@ export function generateSchedule(tasks, routines = [], options = {}) {
   let previousPlacement = null;
 
   for (const item of sortedTasks) {
-    const scheduleOutcome = allocateTask(item.task, availability, previousPlacement, config);
+    const scheduleOutcome = allocateTask(item.task, availability, previousPlacement, config, anchorDate);
     if (scheduleOutcome) {
       placements.push(scheduleOutcome);
       previousPlacement = scheduleOutcome;
@@ -98,12 +98,14 @@ export function generateSchedule(tasks, routines = [], options = {}) {
  * @param {Object|null} previousPlacement
  * @param {Object} config
  */
-export function allocateTask(task, availability, previousPlacement, config) {
+export function allocateTask(task, availability, previousPlacement, config, anchorDate = stripTime(new Date())) {
   const requiredMinutes =
     Math.ceil((task.estimatedDuration ?? 60) / config.minimumSlotMinutes) * config.minimumSlotMinutes;
   const travelBuffer = (task.travelMinutes ?? 0) + config.travelBufferMinutes;
   const earliestStartKey = previousPlacement ? previousPlacement.end.toISOString().slice(0, 10) : null;
-  const startConstraint = task.start ? new Date(task.start) : new Date();
+  const planStart = new Date(anchorDate);
+  planStart.setHours(config.dayStartHour, 0, 0, 0);
+  const startConstraint = task.start ? new Date(task.start) : planStart;
   const deadlineConstraint =
     task.hasDeadline === false ? null : task.due ? new Date(task.due) : null;
 
@@ -167,11 +169,12 @@ export function allocateTask(task, availability, previousPlacement, config) {
 /**
  * Greedy scheduling helper useful for testing.
  */
-export function scheduleTasksGreedy(tasks, availability, config = defaultSchedulingOptions) {
+export function scheduleTasksGreedy(tasks, availability, config = defaultSchedulingOptions, anchorDate) {
   const placements = [];
   let previous = null;
+  const anchor = anchorDate ?? deriveAnchorFromAvailability(availability);
   for (const task of tasks) {
-    const placement = allocateTask(task, availability, previous, config);
+    const placement = allocateTask(task, availability, previous, config, anchor);
     if (placement) {
       placements.push(placement);
       previous = placement;
@@ -284,6 +287,15 @@ function stripTime(source) {
   const out = new Date(source);
   out.setHours(0, 0, 0, 0);
   return out;
+}
+
+function deriveAnchorFromAvailability(availability) {
+  const firstKey = availability?.keys?.().next?.().value;
+  if (firstKey) {
+    const parsed = new Date(firstKey);
+    if (!Number.isNaN(parsed.getTime())) return parsed;
+  }
+  return stripTime(new Date());
 }
 
 function classifyEnergyBand(date, config) {
