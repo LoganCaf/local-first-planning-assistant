@@ -43,12 +43,65 @@
           "startedAt": "2025-12-02T04:31:34.097Z",
           "stoppedAt": "2025-12-02T04:31:37.677Z",
           "note": null
+        },
+        {
+          "startedAt": "2025-12-02T04:37:10.912Z",
+          "stoppedAt": "2025-12-02T04:37:15.120Z",
+          "note": null
+        },
+        {
+          "startedAt": "2025-12-02T04:38:03.048Z",
+          "stoppedAt": "2025-12-02T04:40:35.132Z",
+          "note": null
+        },
+        {
+          "startedAt": "2025-12-02T04:44:09.834Z",
+          "stoppedAt": "2025-12-02T04:44:12.217Z",
+          "note": null
+        },
+        {
+          "startedAt": "2025-12-02T04:44:14.091Z",
+          "stoppedAt": "2025-12-02T04:44:14.825Z",
+          "note": null
         }
       ],
       "isCompleted": true,
       "categoryWeights": {},
       "createdAt": "2025-12-02T03:03:36.605Z",
-      "updatedAt": "2025-12-02T04:31:41.567Z"
+      "updatedAt": "2025-12-02T04:44:15.410Z"
+    },
+    {
+      "id": "mio31itr-ate5xc",
+      "title": "adadadsada",
+      "description": "asdasdasd",
+      "estimatedDuration": 60,
+      "tags": [],
+      "priority": 3,
+      "due": "2025-12-03T04:31:00.000Z",
+      "start": null,
+      "hasDeadline": true,
+      "hardDeadline": true,
+      "dependencies": [],
+      "projectId": null,
+      "goalId": null,
+      "location": null,
+      "travelMinutes": 0,
+      "history": [
+        {
+          "startedAt": "2025-12-02T04:33:14.396Z",
+          "stoppedAt": "2025-12-02T04:33:29.028Z",
+          "note": null
+        },
+        {
+          "startedAt": "2025-12-02T04:33:33.996Z",
+          "stoppedAt": "2025-12-02T04:47:50.561Z",
+          "note": null
+        }
+      ],
+      "isCompleted": true,
+      "categoryWeights": {},
+      "createdAt": "2025-12-02T04:33:10.287Z",
+      "updatedAt": "2025-12-02T04:47:50.561Z"
     }
   ],
   "routines": [],
@@ -60,6 +113,19 @@
       "title": "sodjs",
       "start": "2025-12-01T13:00:00.000Z",
       "end": "2025-12-01T14:00:00.000Z",
+      "location": null,
+      "metadata": {
+        "priority": 3,
+        "energyBand": "morning",
+        "due": "2025-12-03T04:31:00.000Z",
+        "goalId": null
+      }
+    },
+    {
+      "taskId": "mio31itr-ate5xc",
+      "title": "adadadsada",
+      "start": "2025-12-01T14:00:00.000Z",
+      "end": "2025-12-01T15:00:00.000Z",
       "location": null,
       "metadata": {
         "priority": 3,
@@ -724,10 +790,15 @@
           "startedAt": "2025-12-02T04:01:29.055Z",
           "stoppedAt": "2025-12-02T04:01:34.688Z",
           "note": null
+        },
+        {
+          "startedAt": "2025-12-02T04:37:59.728Z",
+          "stoppedAt": "2025-12-02T04:38:00.839Z",
+          "note": null
         }
       ],
       "createdAt": "2025-12-02T02:37:50.239Z",
-      "updatedAt": "2025-12-02T04:26:22.748Z",
+      "updatedAt": "2025-12-02T04:38:00.839Z",
       "source": "https://elearning.mines.edu/feeds/calendars/user_Amn7tDO3I65L17MwbcItRmNxJId33cwsrbvEYGCF.ics"
     },
     {

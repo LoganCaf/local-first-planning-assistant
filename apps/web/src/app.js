@@ -366,48 +366,48 @@ function registerEvents() {
 
   if (elements.agendaList) {
     elements.agendaList.addEventListener('click', async (event) => {
-      const startAssign = event.target.closest('[data-action="start-assignment"]');
-      const pauseAssign = event.target.closest('[data-action="pause-assignment"]');
-      const finishAssign = event.target.closest('[data-action="finish-assignment"]');
-      const startTask = event.target.closest('[data-action="start-task"]');
-      const pauseTask = event.target.closest('[data-action="pause-task"]');
-      const finishTask = event.target.closest('[data-action="finish-task"]');
+      const button = event.target.closest('button[data-action]');
+      if (button) {
+        event.stopPropagation();
+        const action = button.dataset.action;
+        if (action === 'start-assignment') {
+          await api.updateAssignmentTimer(button.dataset.assignmentId, 'start');
+          await loadAssignments();
+          return;
+        }
+        if (action === 'pause-assignment') {
+          await api.updateAssignmentTimer(button.dataset.assignmentId, 'pause');
+          await loadAssignments();
+          return;
+        }
+        if (action === 'finish-assignment') {
+          await api.updateAssignmentTimer(button.dataset.assignmentId, 'complete');
+          await loadAssignments();
+          return;
+        }
+        if (action === 'start-task') {
+          await api.updateTaskTimer(button.dataset.taskId, 'start');
+          await loadTasks();
+          return;
+        }
+        if (action === 'pause-task') {
+          await api.updateTaskTimer(button.dataset.taskId, 'pause');
+          await loadTasks();
+          return;
+        }
+        if (action === 'finish-task') {
+          await api.updateTaskTimer(button.dataset.taskId, 'complete');
+          await loadTasks();
+          return;
+        }
+        if (action === 'edit-task-modal') {
+          const task = state.tasks.find((t) => t.id === button.dataset.taskId);
+          if (task) openTaskModal(task);
+          return;
+        }
+        return;
+      }
 
-      if (startAssign) {
-        await api.updateAssignmentTimer(startAssign.dataset.assignmentId, 'start');
-        await loadAssignments();
-        return;
-      }
-      if (pauseAssign) {
-        await api.updateAssignmentTimer(pauseAssign.dataset.assignmentId, 'pause');
-        await loadAssignments();
-        return;
-      }
-      if (finishAssign) {
-        await api.updateAssignmentTimer(finishAssign.dataset.assignmentId, 'complete');
-        await loadAssignments();
-        return;
-      }
-      if (startTask) {
-        await api.updateTaskTimer(startTask.dataset.taskId, 'start');
-        await loadTasks();
-        return;
-      }
-      if (pauseTask) {
-        await api.updateTaskTimer(pauseTask.dataset.taskId, 'pause');
-        await loadTasks();
-        return;
-      }
-      if (finishTask) {
-        await api.updateTaskTimer(finishTask.dataset.taskId, 'complete');
-        await loadTasks();
-        return;
-      }
-
-      const li = event.target.closest('[data-task-id]');
-      if (!li) return;
-      const task = state.tasks.find((t) => t.id === li.dataset.taskId);
-      if (task) openTaskModal(task);
     });
   }
 
@@ -690,18 +690,6 @@ function registerEvents() {
       pushAssistantMessage('user', message);
       elements.assistantInput.value = '';
       await respondAssistant(message);
-    });
-  }
-
-  if (elements.agendaList) {
-    elements.agendaList.addEventListener('click', (event) => {
-      const li = event.target.closest('[data-task-id]');
-      if (!li) return;
-      const id = li.dataset.taskId;
-      const task = state.tasks.find((t) => t.id === id);
-      if (task) {
-        openTaskModal(task);
-      }
     });
   }
 }

@@ -452,7 +452,8 @@ export function renderCountdowns({ listEl, tasks = [], taskSegments = [], assign
         duration: task.estimatedDuration ?? 60,
         source: 'Task',
         priority: task.priority,
-        history: task.history ?? []
+        history: task.history ?? [],
+        isCompleted: task.isCompleted
       })),
     ...assignments
       .filter((assignment) => toISODate(assignment.due) === iso)
@@ -539,6 +540,7 @@ export function renderCountdowns({ listEl, tasks = [], taskSegments = [], assign
                   <button type="button" class="ghost-button" data-action="start-task" data-task-id="${item.id ?? ''}">Start</button>
                   <button type="button" class="ghost-button" data-action="pause-task" data-task-id="${item.id ?? ''}">Pause</button>
                   <button type="button" class="ghost-button" data-action="finish-task" data-task-id="${item.id ?? ''}">Done</button>
+                  <button type="button" class="ghost-button" data-action="edit-task-modal" data-task-id="${item.id ?? ''}">Edit</button>
                 </div>`
               : ''
       }
