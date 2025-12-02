@@ -30,6 +30,8 @@ const elements = {
   regeneratePlan: document.getElementById('regenerate-plan'),
   insightCards: document.getElementById('insight-cards'),
   aiPlanButton: document.getElementById('ai-plan-generate'),
+  aiPlanSave: document.getElementById('ai-plan-save'),
+  aiPlanClear: document.getElementById('ai-plan-clear'),
   aiPlanStatus: document.getElementById('ai-plan-status'),
   aiPlanGrid: document.getElementById('ai-plan-grid'),
   aiPlanList: document.getElementById('ai-plan-list'),
@@ -59,6 +61,7 @@ const elements = {
 };
 
 const OPENAI_KEY_STORAGE = 'openai_api_key';
+const AI_PLAN_STORAGE = 'ai_plan_days_cache';
 let openAIApiKey = loadStoredApiKey();
 
 let countdownIntervalId;
@@ -128,6 +131,7 @@ registerEvents();
 
 async function bootstrap() {
   syncOpenAIKeyUI();
+  restorePlanFromStorage();
   await refreshConnection();
   await loadTasks();
   await loadTaskSegments();
@@ -238,6 +242,18 @@ function registerEvents() {
   if (elements.aiPlanButton) {
     elements.aiPlanButton.addEventListener('click', async () => {
       await generateAIPlan();
+    });
+  }
+
+  if (elements.aiPlanSave) {
+    elements.aiPlanSave.addEventListener('click', () => {
+      savePlanToStorage(state.aiPlanDays);
+    });
+  }
+
+  if (elements.aiPlanClear) {
+    elements.aiPlanClear.addEventListener('click', () => {
+      clearSavedPlan();
     });
   }
 
@@ -1265,6 +1281,7 @@ async function generateAIPlan() {
     const audit = buildPlanAudit(planDays);
     const total = countPlanItems(planDays);
     setState({ aiPlanDays: planDays, aiPlanLoading: false, aiPlanAudit: audit });
+    savePlanToStorage(planDays);
     if (elements.aiPlanStatus) {
       elements.aiPlanStatus.textContent = total
         ? `OpenAI 키가 없어 로컬로 ${total}개 일정을 배치했습니다.`
@@ -1282,6 +1299,7 @@ async function generateAIPlan() {
     const audit = buildPlanAudit(planDays);
     const total = countPlanItems(planDays);
     setState({ aiPlanDays: planDays, aiPlanAudit: audit });
+    savePlanToStorage(planDays);
     if (elements.aiPlanStatus) {
       elements.aiPlanStatus.textContent = total
         ? `AI가 ${total}개 일정을 배치했습니다.`
@@ -1295,6 +1313,7 @@ async function generateAIPlan() {
     const audit = buildPlanAudit(planDays);
     const total = countPlanItems(planDays);
     setState({ aiPlanDays: planDays, aiPlanAudit: audit });
+    savePlanToStorage(planDays);
     if (elements.aiPlanStatus) {
       elements.aiPlanStatus.textContent = total
         ? `AI 호출 실패로 로컬로 ${total}개 일정을 배치했습니다.`
@@ -1443,6 +1462,44 @@ function countUpcomingAssignments(assignments = []) {
     if (Number.isNaN(due.getTime())) return false;
     return due >= today;
   }).length;
+}
+
+function savePlanToStorage(planDays = []) {
+  try {
+    const payload = { savedAt: new Date().toISOString(), days: planDays };
+    localStorage.setItem(AI_PLAN_STORAGE, JSON.stringify(payload));
+    if (elements.aiPlanStatus) {
+      elements.aiPlanStatus.textContent = 'AI 계획을 저장했습니다.';
+    }
+  } catch (error) {
+    console.error('Failed to save plan', error);
+  }
+}
+
+function restorePlanFromStorage() {
+  try {
+    const raw = localStorage.getItem(AI_PLAN_STORAGE);
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    if (!parsed?.days || !Array.isArray(parsed.days)) return;
+    const planDays = parsed.days;
+    const audit = buildPlanAudit(planDays);
+    setState({ aiPlanDays: planDays, aiPlanAudit: audit });
+  } catch (error) {
+    console.error('Failed to restore plan', error);
+  }
+}
+
+function clearSavedPlan() {
+  try {
+    localStorage.removeItem(AI_PLAN_STORAGE);
+    setState({ aiPlanDays: [], aiPlanAudit: { missingCount: 0, missingItems: [], assignmentDates: [] } });
+    if (elements.aiPlanStatus) {
+      elements.aiPlanStatus.textContent = '저장된 AI 계획을 지웠습니다.';
+    }
+  } catch (error) {
+    console.error('Failed to clear plan', error);
+  }
 }
 
 function buildPlanAudit(planDays = []) {
