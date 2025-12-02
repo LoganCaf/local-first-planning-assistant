@@ -480,18 +480,36 @@ private struct RoutineWritePayload: Encodable {
 
         var tempBlocks: [BlockPayload] = []
         let calendar = Calendar.current
-        for weekday in routine.weekdays {
-            if let startDate = calendar.nextDate(after: Date(), matching: routine.startTime, matchingPolicy: .strict, direction: .forward),
-               let endDate = calendar.nextDate(after: Date(), matching: routine.endTime, matchingPolicy: .strict, direction: .forward) {
-                var startComp = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: startDate)
-                var endComp = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: endDate)
-                startComp.weekday = weekday
-                endComp.weekday = weekday
-                if let s = calendar.date(from: startComp), let e = calendar.date(from: endComp) {
-                    tempBlocks.append(BlockPayload(start: s, end: e, context: name))
-                }
+        let now = Date()
+        let sortedWeekdays = routine.weekdays.sorted()
+
+        for weekday in sortedWeekdays {
+            var startComps = DateComponents()
+            startComps.weekday = weekday
+            startComps.hour = routine.startTime.hour
+            startComps.minute = routine.startTime.minute
+            startComps.second = 0
+
+            guard let startDate = calendar.nextDate(
+                after: now,
+                matching: startComps,
+                matchingPolicy: .nextTimePreservingSmallerComponents,
+                direction: .forward
+            ) else { continue }
+
+            var endComps = startComps
+            endComps.hour = routine.endTime.hour ?? routine.startTime.hour
+            endComps.minute = routine.endTime.minute ?? routine.startTime.minute
+
+            var endDate = calendar.date(from: calendar.dateComponents([.year, .month, .day], from: startDate))!
+            endDate = calendar.date(bySettingHour: endComps.hour ?? 0, minute: endComps.minute ?? 0, second: 0, of: endDate) ?? startDate
+            if endDate <= startDate {
+                endDate = calendar.date(byAdding: .hour, value: 1, to: startDate) ?? startDate.addingTimeInterval(3600)
             }
+
+            tempBlocks.append(BlockPayload(start: startDate, end: endDate, context: name))
         }
+
         blocks = tempBlocks
     }
 }
