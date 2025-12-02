@@ -102,6 +102,50 @@
       "categoryWeights": {},
       "createdAt": "2025-12-02T04:33:10.287Z",
       "updatedAt": "2025-12-02T04:47:50.561Z"
+    },
+    {
+      "id": "6C2C93B3-219B-4FA8-A79A-4E18A5888DFA",
+      "title": "Njnjnjn",
+      "description": "",
+      "estimatedDuration": 60,
+      "tags": [],
+      "priority": 3,
+      "due": "2025-12-02T05:15:00.000Z",
+      "start": null,
+      "hasDeadline": true,
+      "hardDeadline": true,
+      "dependencies": [],
+      "projectId": null,
+      "goalId": null,
+      "location": null,
+      "travelMinutes": 0,
+      "history": [],
+      "isCompleted": false,
+      "categoryWeights": {},
+      "createdAt": "2025-12-02T05:08:54.529Z",
+      "updatedAt": "2025-12-02T05:08:54.529Z"
+    },
+    {
+      "id": "14F12F37-9B41-4070-A084-20DAE3759271",
+      "title": "Bjbjbjbjbjjbj",
+      "description": "",
+      "estimatedDuration": 60,
+      "tags": [],
+      "priority": 3,
+      "due": "2025-12-02T05:17:00.000Z",
+      "start": null,
+      "hasDeadline": true,
+      "hardDeadline": true,
+      "dependencies": [],
+      "projectId": null,
+      "goalId": null,
+      "location": null,
+      "travelMinutes": 0,
+      "history": [],
+      "isCompleted": false,
+      "categoryWeights": {},
+      "createdAt": "2025-12-02T05:10:47.991Z",
+      "updatedAt": "2025-12-02T05:10:47.991Z"
     }
   ],
   "routines": [],
@@ -131,6 +175,32 @@
         "priority": 3,
         "energyBand": "morning",
         "due": "2025-12-03T04:31:00.000Z",
+        "goalId": null
+      }
+    },
+    {
+      "taskId": "6C2C93B3-219B-4FA8-A79A-4E18A5888DFA",
+      "title": "Njnjnjn",
+      "start": "2025-12-01T15:00:00.000Z",
+      "end": "2025-12-01T16:00:00.000Z",
+      "location": null,
+      "metadata": {
+        "priority": 3,
+        "energyBand": "morning",
+        "due": "2025-12-02T05:15:00.000Z",
+        "goalId": null
+      }
+    },
+    {
+      "taskId": "14F12F37-9B41-4070-A084-20DAE3759271",
+      "title": "Bjbjbjbjbjjbj",
+      "start": "2025-12-01T16:00:00.000Z",
+      "end": "2025-12-01T17:00:00.000Z",
+      "location": null,
+      "metadata": {
+        "priority": 3,
+        "energyBand": "morning",
+        "due": "2025-12-02T05:17:00.000Z",
         "goalId": null
       }
     }

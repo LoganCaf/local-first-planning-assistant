@@ -10,6 +10,8 @@ final class AppData: ObservableObject {
     @Published var taskSegments: [TaskSegment] = []
     @Published var assignmentsLastUpdated: Date?
     @Published private(set) var lastAssignmentSync: AssignmentSyncSource?
+    private let defaults = UserDefaults.standard
+    private let reminderKey = "assignmentReminderMinutes"
 
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
@@ -50,6 +52,8 @@ final class AppData: ObservableObject {
         Task {
             await syncFromServer()
         }
+
+        NotificationManager.shared.requestAuthorizationIfNeeded()
     }
 
     // MARK: - Routines
@@ -57,6 +61,7 @@ final class AppData: ObservableObject {
         routines.append(routine)
         persistRoutines()
         Task { await serverClient.upsertRoutine(routine) }
+        scheduleAllReminders()
     }
 
     func removeRoutines(at offsets: IndexSet) {
@@ -76,6 +81,7 @@ final class AppData: ObservableObject {
         routines.remove(at: index)
         persistRoutines()
         Task { await serverClient.deleteRoutine(id: id) }
+        scheduleAllReminders()
     }
 
     func toggleRoutineEnabled(id: UUID) {
@@ -83,6 +89,7 @@ final class AppData: ObservableObject {
         routines[index].isEnabled.toggle()
         persistRoutines()
         Task { await serverClient.updateRoutine(routines[index]) }
+        scheduleAllReminders()
     }
 
     func update(routine: RoutineItem) {
@@ -90,6 +97,7 @@ final class AppData: ObservableObject {
         routines[index] = routine
         persistRoutines()
         Task { await serverClient.updateRoutine(routine) }
+        scheduleAllReminders()
     }
 
     // MARK: - Task Segments
@@ -207,6 +215,7 @@ final class AppData: ObservableObject {
         sortTasks()
         persistTodos()
         Task { await serverClient.upsertTask(task) }
+        scheduleAllReminders()
     }
 
     func update(task: TaskItem) {
@@ -215,6 +224,7 @@ final class AppData: ObservableObject {
         sortTasks()
         persistTodos()
         Task { await serverClient.updateTask(task) }
+        scheduleAllReminders()
     }
 
     func removeTasks(at offsets: IndexSet) {
@@ -228,6 +238,7 @@ final class AppData: ObservableObject {
             removeSegments(for: .todo, parentIdentifier: id.uuidString)
             Task { await serverClient.deleteTask(id: id) }
         }
+        scheduleAllReminders()
     }
 
     func toggleTaskCompletion(id: UUID) {
@@ -236,6 +247,7 @@ final class AppData: ObservableObject {
         sortTasks()
         persistTodos()
         Task { await serverClient.updateTask(todos[index]) }
+        scheduleAllReminders()
     }
 
     func startTaskProgress(id: UUID) {
@@ -254,6 +266,7 @@ final class AppData: ObservableObject {
         todos[index] = task
         persistTodos()
         Task { await serverClient.taskTimer(id: task.id, action: "start") }
+        scheduleAllReminders()
     }
 
     func pauseTaskProgress(id: UUID) {
@@ -269,6 +282,7 @@ final class AppData: ObservableObject {
         todos[index] = task
         persistTodos()
         Task { await serverClient.taskTimer(id: task.id, action: "pause") }
+        scheduleAllReminders()
     }
 
     func completeTaskProgress(id: UUID) {
@@ -290,12 +304,14 @@ final class AppData: ObservableObject {
         sortTasks()
         persistTodos()
         Task { await serverClient.taskTimer(id: task.id, action: "complete") }
+        scheduleAllReminders()
     }
 
     func setTaskDuration(id: UUID, minutes: Int?) {
         guard let index = todos.firstIndex(where: { $0.id == id }) else { return }
         todos[index].estimatedDurationMinutes = minutes
         persistTodos()
+        scheduleAllReminders()
     }
 
     func toggleAssignmentCompletion(id: String) {
@@ -304,6 +320,7 @@ final class AppData: ObservableObject {
         sortAssignments()
         persistAssignments()
         Task { await serverClient.updateAssignment(assignments[index]) }
+        scheduleAllReminders()
     }
 
     func startAssignmentProgress(id: String) {
@@ -322,6 +339,7 @@ final class AppData: ObservableObject {
         assignments[index] = assignment
         persistAssignments()
         Task { await serverClient.assignmentTimer(id: assignment.id, action: "start") }
+        scheduleAllReminders()
     }
 
     func pauseAssignmentProgress(id: String) {
@@ -337,6 +355,7 @@ final class AppData: ObservableObject {
         assignments[index] = assignment
         persistAssignments()
         Task { await serverClient.assignmentTimer(id: assignment.id, action: "pause") }
+        scheduleAllReminders()
     }
 
     func completeAssignmentProgress(id: String) {
@@ -358,6 +377,7 @@ final class AppData: ObservableObject {
         sortAssignments()
         persistAssignments()
         Task { await serverClient.assignmentTimer(id: assignment.id, action: "complete") }
+        scheduleAllReminders()
     }
 
     func setAssignmentDuration(id: String, minutes: Int?) {
@@ -365,6 +385,7 @@ final class AppData: ObservableObject {
         assignments[index].estimatedDurationMinutes = minutes
         persistAssignments()
         Task { await serverClient.updateAssignment(assignments[index]) }
+        scheduleAllReminders()
     }
 
     func replaceAssignments(with newAssignments: [SchoolAssignment], syncSource: AssignmentSyncSource?, rawICSData: Data?) {
@@ -398,6 +419,7 @@ final class AppData: ObservableObject {
                 await serverClient.upsertAssignment(assignment)
             }
         }
+        scheduleAllReminders()
 
         let validAssignmentIDs = Set(assignments.map(\.id))
         let originalSegmentCount = taskSegments.count
@@ -407,6 +429,7 @@ final class AppData: ObservableObject {
         if taskSegments.count != originalSegmentCount {
             persistTaskSegments()
         }
+        scheduleAllReminders()
     }
 
     func loadStoredAssignmentsICSData() -> Data? {
@@ -449,6 +472,7 @@ final class AppData: ObservableObject {
         if let decoded = try? decoder.decode([TaskItem].self, from: data) {
             todos = decoded
             sortTasks()
+            scheduleAllReminders()
         }
     }
 
@@ -459,6 +483,7 @@ final class AppData: ObservableObject {
             assignmentsLastUpdated = decoded.lastUpdated
             lastAssignmentSync = decoded.syncSource
             sortAssignments()
+            scheduleAllReminders()
         }
     }
 
@@ -466,6 +491,7 @@ final class AppData: ObservableObject {
         guard let data = try? Data(contentsOf: routinesURL) else { return }
         if let decoded = try? decoder.decode([RoutineItem].self, from: data) {
             routines = decoded
+            scheduleAllReminders()
         }
     }
 
@@ -530,7 +556,20 @@ final class AppData: ObservableObject {
             self.persistTaskSegments()
             self.persistAssignments()
             self.persistRoutines()
+            self.scheduleAllReminders()
         }
+    }
+
+    func refreshAssignmentReminders() {
+        scheduleAllReminders()
+    }
+
+    private func scheduleAllReminders() {
+        let lead = defaults.integer(forKey: reminderKey)
+        let effectiveLead = lead > 0 ? lead : 60
+        NotificationManager.shared.scheduleTaskReminders(tasks: todos, leadMinutes: effectiveLead)
+        NotificationManager.shared.scheduleAssignmentReminders(assignments: assignments, leadMinutes: effectiveLead)
+        NotificationManager.shared.scheduleRoutineReminders(routines: routines)
     }
 }
 
