@@ -1,1 +1,16 @@
+# Dependencies and generated application data
+node_modules/
+apps/server/data/
+
+# Local models and binaries
 *.gguf
+bin/
+
+# Apple and Xcode user state
+.DS_Store
+**/xcuserdata/
+*.xcuserstate
+
+# Private Canvas calendar exports
+cal/user_*.ics
+cal/cal/user_*.ics

@@ -6,6 +6,16 @@ import { InMemoryDataStore } from '@llm/shared';
 import { __handlers } from '../src/app.js';
 import { MockAssistant } from '../src/assistant.js';
 
+class TestDataStore extends InMemoryDataStore {
+  save() {}
+}
+
+function createStore() {
+  const store = new TestDataStore();
+  store.state = { tasks: [], goals: [], routines: [], placements: [] };
+  return store;
+}
+
 function createRequest(method, path, body = null) {
   const payload = body ? JSON.stringify(body) : '';
   let sent = false;
@@ -51,8 +61,7 @@ function createResponse() {
 }
 
 test('task lifecycle via handlers', async () => {
-  const store = new InMemoryDataStore('apps/server/test/tmp-db.json');
-  store.state = { tasks: [], goals: [], routines: [], placements: [] };
+  const store = createStore();
 
   const createReq = createRequest('POST', '/api/tasks', {
     title: 'Finish project outline',
@@ -106,8 +115,7 @@ test('task lifecycle via handlers', async () => {
 });
 
 test('assistant captures deadline tasks from chat input', async () => {
-  const store = new InMemoryDataStore('apps/server/test/tmp-db.json');
-  store.state = { tasks: [], goals: [], routines: [], placements: [] };
+  const store = createStore();
   const now = new Date();
   const expectedDue = nextRelativeDate(now, 1, 21, 0);
 
@@ -135,8 +143,7 @@ test('assistant captures deadline tasks from chat input', async () => {
 });
 
 test('assistant captures midnight deadline', async () => {
-  const store = new InMemoryDataStore('apps/server/test/tmp-db.json');
-  store.state = { tasks: [], goals: [], routines: [], placements: [] };
+  const store = createStore();
   const assistant = new MockAssistant('Captured your request.');
   const assistantReq = createRequest('POST', '/api/assistant', {
     message: 'Essay due at midnight',
@@ -155,8 +162,7 @@ test('assistant captures midnight deadline', async () => {
 });
 
 test('assistant captures tmr evening deadline', async () => {
-  const store = new InMemoryDataStore('apps/server/test/tmp-db.json');
-  store.state = { tasks: [], goals: [], routines: [], placements: [] };
+  const store = createStore();
   const assistant = new MockAssistant('Captured your request.');
   const assistantReq = createRequest('POST', '/api/assistant', {
     message: 'Project update due tmr evening',
@@ -175,8 +181,7 @@ test('assistant captures tmr evening deadline', async () => {
 });
 
 test('assistant captures explicit time', async () => {
-  const store = new InMemoryDataStore('apps/server/test/tmp-db.json');
-  store.state = { tasks: [], goals: [], routines: [], placements: [] };
+  const store = createStore();
   const assistant = new MockAssistant('Captured your request.');
   const assistantReq = createRequest('POST', '/api/assistant', {
     message: 'I have a test due tomorrow at 6pm',
@@ -195,8 +200,7 @@ test('assistant captures explicit time', async () => {
 });
 
 test('assistant captures weekday without explicit due keyword', async () => {
-  const store = new InMemoryDataStore('apps/server/test/tmp-db.json');
-  store.state = { tasks: [], goals: [], routines: [], placements: [] };
+  const store = createStore();
   const assistant = new MockAssistant('Captured your request.');
   const assistantReq = createRequest('POST', '/api/assistant', {
     message: 'Final on Friday at 2pm',
@@ -214,8 +218,7 @@ test('assistant captures weekday without explicit due keyword', async () => {
 });
 
 test('assistant captures month/day date', async () => {
-  const store = new InMemoryDataStore('apps/server/test/tmp-db.json');
-  store.state = { tasks: [], goals: [], routines: [], placements: [] };
+  const store = createStore();
   const assistant = new MockAssistant('Captured your request.');
   const assistantReq = createRequest('POST', '/api/assistant', {
     message: 'Assignment due Nov 14 8am',

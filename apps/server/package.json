@@ -11,6 +11,6 @@
     "format": "node ./scripts/format-stub.js"
   },
   "dependencies": {
-    "@llm/shared": "workspace:*"
+    "@llm/shared": "file:../../packages/shared"
   }
 }
